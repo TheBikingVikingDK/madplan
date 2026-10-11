@@ -42,7 +42,9 @@ export default async function handler(req,res) {
     if (!list) throw new ApiError('Vælg en af dine indkøbslister.',400);
     if (body.action === 'preview' || body.action === 'transfer') {
       if (!Array.isArray(body.items) || body.items.length > 100 || body.items.some(x => !x || typeof x.name !== 'string' || !x.name.trim() || x.name.length > 200 || typeof x.note !== 'string' || x.note.length > 200)) throw new ApiError('Ugyldige varer eller for mange varer (maks. 100).',400);
-      const items = body.items.map(x=>({name:x.name.trim(),note:x.note.trim()}));
+      if(body.items.some(x=>x.aliases!==undefined&&(!Array.isArray(x.aliases)||x.aliases.length>50||x.aliases.some(n=>typeof n!=='string'||!n.trim()||n.length>200))))throw new ApiError('Ugyldige ingrediensgrupper.',400);
+      if(body.items.some(x=>x.gramsPerDl!=null&&(!Number.isFinite(x.gramsPerDl)||x.gramsPerDl<=0||x.gramsPerDl>1000)))throw new ApiError('Ugyldig omregningsfaktor.',400);
+      const items = body.items.map(x=>({name:x.name.trim(),note:x.note.trim(),aliases:(x.aliases||[]).map(n=>n.trim()),gramsPerDl:x.gramsPerDl||null}));
       if (body.action === 'transfer') return res.json(await transfer(list.id,items,session.token));
       const existing = await query('shoppingListItems',{shoppingListId:list.id},session.token);
       return res.json({items:classify(items,existing),existing:existing.filter(x=>!x.ticked).map(x=>({name:String(x.name || ''),note:String(x.shortDescription || '')}))});

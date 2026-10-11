@@ -30,20 +30,21 @@ test('Duplicates match active names; checked-off items may be bought again',()=>
 test('Unexpected RPC data fails closed instead of treating the list as empty',async()=>{
   await assert.rejects(query('shoppingLists',{},'token',async()=>new Response('{}',{status:200})),/Kunne ikke læse/);
 });
-test('Transfer rereads the list, skips duplicates, keeps amount in note and stops on ambiguous failure',async()=>{
+test('Transfer rereads the list, increases existing amounts, keeps notes and stops on ambiguous failure',async()=>{
   const writes=[];
   const fetcher=async(url,options)=>{
     const body=JSON.parse(options.body);
     assert.match(options.headers.Cookie,/tjek-session=/);
-    if(url.endsWith('/'))return Response.json([{value:[{name:'Løg',ticked:false}]}]);
+    if(url.endsWith('/'))return Response.json([{value:[{clientId:'onion-id',name:'Løg',count:1,shortDescription:'3 stk',ticked:false}]}]);
     writes.push(body);
     if(body.item.name==='Ris')throw Error('lost response');
     return Response.json({ok:true});
   };
   const result=await transfer(123,[{name:'løg',note:'2 stk'},{name:'Mælk',note:'500 ml'},{name:'mælk',note:'100 ml'},{name:'Ris',note:'200 g'},{name:'Pasta',note:'500 g'}],'token',fetcher);
-  assert.deepEqual(result.added,['Mælk']);assert.deepEqual(result.skipped,['løg','mælk']);
-  assert.equal(result.uncertain,'Ris');assert.equal(writes.length,2);
-  assert.equal(writes[0].item.count,1);assert.equal(writes[0].item.comment,'500 ml');
+  assert.deepEqual(result.added,['Mælk']);assert.deepEqual(result.updated,['Løg']);assert.deepEqual(result.skipped,['mælk']);
+  assert.equal(result.uncertain,'Ris');assert.equal(writes.length,3);
+  assert.equal(writes[0].item.count,5);assert.equal(writes[0].item.shortDescription,'5 stk');
+  assert.equal(writes[1].item.count,1);assert.equal(writes[1].item.comment,'500 ml');
   assert.equal(writes[0].shoppingListId,123);
 });
 async function run(body,headers={}){
