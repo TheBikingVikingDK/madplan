@@ -17,3 +17,4 @@ export default async function handler(req,res){
     return res.status(200).json({title:String(recipe.name||$('h1').first().text()).trim(),url:url.toString(),lines:recipe.recipeIngredient.map(x=>String(x).trim()).filter(Boolean)});
   }catch{return res.status(502).json({error:'Kunne ikke hente opskriften. Prøv igen senere'})}
 }
+
