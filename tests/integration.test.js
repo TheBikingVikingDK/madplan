@@ -11,7 +11,7 @@ test('Ingredients support Danish decimals, implicit pieces, fractions and mixed 
   assert.deepEqual(parse('2 løg'),{name:'løg',qty:2,unit:'stk'});
   assert.deepEqual(parse('½ dl mælk'),{name:'mælk',qty:50,unit:'ml'});
   assert.deepEqual(parse('1½ spsk. olie'),{name:'olie',qty:1.5,unit:'spsk'});
-  assert.equal(parse('1-2 løg').qty,null);
+  assert.equal(parse('1-2 løg').qty,2);
   assert.equal(parse('salt og peber').qty,null);
 });
 test('Session hides the token and rejects tampering and expired sessions',()=>{
@@ -43,7 +43,7 @@ test('Transfer rereads the list, skips duplicates, keeps amount in note and stop
   const result=await transfer(123,[{name:'løg',note:'2 stk'},{name:'Mælk',note:'500 ml'},{name:'mælk',note:'100 ml'},{name:'Ris',note:'200 g'},{name:'Pasta',note:'500 g'}],'token',fetcher);
   assert.deepEqual(result.added,['Mælk']);assert.deepEqual(result.skipped,['løg','mælk']);
   assert.equal(result.uncertain,'Ris');assert.equal(writes.length,2);
-  assert.equal(writes[0].item.count,1);assert.equal(writes[0].item.shortDescription,'500 ml');
+  assert.equal(writes[0].item.count,1);assert.equal(writes[0].item.comment,'500 ml');
   assert.equal(writes[0].shoppingListId,123);
 });
 async function run(body,headers={}){

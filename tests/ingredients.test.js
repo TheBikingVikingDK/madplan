@@ -41,3 +41,12 @@ test('Pantry and excluded values migrate to canonical names and units',()=>{
   assert.deepEqual(result.excluded,[]);
   assert.deepEqual(migrateAdjustments({},['alm løg|stk']).excluded,['løg|stk']);
 });
+test('Quantity ranges use the maximum including embedded recipe-name quantities',()=>{
+  assert.deepEqual(parse('350-400 g kyllingebryst, -lårfilet eller -inderfilet'),{name:'kyllingebryst, -lårfilet eller -inderfilet',qty:400,unit:'g'});
+  assert.equal(parse('350–400g kylling').qty,400);
+  assert.equal(parse('400 — 350 gram kylling').qty,400);
+  assert.equal(parse('0,5-0,75 kg ris').qty,750);
+  assert.equal(parse('½–¾ dl mælk').qty,75);
+  assert.equal(aggregateIngredients(['350-400 g kylling','200 g kylling'])[0].qty,600);
+  assert.equal(parse('1-2 løg').qty,2);
+});

@@ -2,23 +2,23 @@ let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {norm,parse,format,aggregateIngredients,migrateAdjustments,GRAMS_PER_DL} from './lib/ingredients.js';
 
 const KEY='madplan-mvp-v1';
-const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{}};
+const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[]};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
 const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
 if(state.ingredientVersion!==2){Object.assign(state,migrateAdjustments(state.adjustments,state.excluded,state.densities));state.ingredientVersion=2;save();}
 function aggregate(){return aggregateIngredients(state.recipes.filter(r=>state.selected.includes(r.id)).flatMap(r=>r.lines),state.densities)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
-function render(){const root=$('recipes');root.replaceChildren();if(!state.recipes.length)root.append(el('p','Tilføj din første opskrift ovenfor.','muted'));state.recipes.forEach(r=>{const wrap=el('div',undefined,'recipe row'),check=el('input');check.type='checkbox';check.setAttribute('aria-label','Vælg '+r.title);check.checked=state.selected.includes(r.id);check.disabled=!check.checked&&state.selected.length>=3;check.addEventListener('change',()=>{state.selected=check.checked?[...state.selected,r.id]:state.selected.filter(id=>id!==r.id);save();invalidatePreview();render()});wrap.append(check);const info=el('div',undefined,'grow');info.append(el('strong',r.title),el('div',r.lines.length+' ingredienser','muted'));if(r.url){const a=el('a','Åbn opskrift');a.href=r.url;a.target='_blank';a.rel='noopener noreferrer';info.append(a)}wrap.append(info);const remove=el('button','Slet','danger');remove.addEventListener('click',()=>{if(!confirm('Slet opskriften?'))return;state.recipes=state.recipes.filter(x=>x.id!==r.id);state.selected=state.selected.filter(x=>x!==r.id);save();invalidatePreview();render()});wrap.append(remove);root.append(wrap)});const list=$('ingredients');list.replaceChildren();const entries=aggregate();if(!entries.length)list.append(el('p','Vælg retter for at se ingredienser.','muted'));entries.forEach(p=>{const wrap=el('div',undefined,'ingredient');const label=el('label');label.style.margin='0';const cb=el('input');cb.type='checkbox';cb.checked=!state.excluded.includes(p.key);cb.addEventListener('change',()=>{state.excluded=cb.checked?state.excluded.filter(k=>k!==p.key):[...state.excluded,p.key];save();invalidatePreview();render()});label.append(cb,document.createTextNode(' '+p.name));label.append(el('div',p.qty===null?'Tjek mængde i opskriften':(p.approximate?'ca. ':'')+format(p.qty)+' '+p.unit,'muted'));const have=el('input');have.type='number';have.min='0';have.step='any';have.setAttribute('aria-label','Har hjemme: '+p.name);have.value=state.adjustments[p.key]??0;have.disabled=p.qty===null;const need=el('strong');const update=()=>{const n=cb.checked?Math.max(0,p.qty-(Number(have.value)||0)):0;need.textContent=p.qty===null?(cb.checked?'Tjek opskrift':'Udeladt'):(p.approximate?'ca. ':'')+format(n)+' '+p.unit};have.addEventListener('input',()=>{state.adjustments[p.key]=Math.max(0,Number(have.value)||0);save();invalidatePreview();update()});update();wrap.append(label,have,need);ingredientDetails(wrap,p);list.append(wrap)});renderWeekDishes();}
+function render(){const root=$('recipes');root.replaceChildren();if(!state.recipes.length)root.append(el('p','Tilføj din første opskrift ovenfor.','muted'));state.recipes.forEach(r=>{const wrap=el('div',undefined,'recipe row'),check=el('input');check.type='checkbox';check.setAttribute('aria-label','Vælg '+r.title);check.checked=state.selected.includes(r.id);check.addEventListener('change',()=>{state.selected=check.checked?[...state.selected,r.id]:state.selected.filter(id=>id!==r.id);save();invalidatePreview();render()});wrap.append(check);const info=el('div',undefined,'grow');info.append(el('strong',r.title),el('div',r.lines.length+' ingredienser','muted'));if(r.url){const a=el('a','Åbn opskrift');a.href=r.url;a.target='_blank';a.rel='noopener noreferrer';info.append(a)}wrap.append(info);const remove=el('button','Slet','danger');remove.addEventListener('click',()=>{if(!confirm('Slet opskriften?'))return;state.recipes=state.recipes.filter(x=>x.id!==r.id);state.selected=state.selected.filter(x=>x!==r.id);save();invalidatePreview();render()});wrap.append(remove);root.append(wrap)});const list=$('ingredients');list.replaceChildren();const entries=aggregate().filter(p=>!state.hiddenIngredients.includes(p.name));if(!entries.length)list.append(el('p','Vælg retter for at se ingredienser.','muted'));entries.forEach(p=>{const wrap=el('div',undefined,'ingredient');const label=el('label');label.style.margin='0';const cb=el('input');cb.type='checkbox';cb.checked=!state.excluded.includes(p.key);cb.addEventListener('change',()=>{state.excluded=cb.checked?state.excluded.filter(k=>k!==p.key):[...state.excluded,p.key];save();invalidatePreview();render()});label.append(cb,document.createTextNode(' '+p.name));label.append(el('div',p.qty===null?'Tjek mængde i opskriften':(p.approximate?'ca. ':'')+format(p.qty)+' '+p.unit,'muted'));const have=el('input');have.type='number';have.min='0';have.step='any';have.setAttribute('aria-label','Har hjemme: '+p.name);have.value=state.adjustments[p.key]??0;have.disabled=p.qty===null;const need=el('strong');const update=()=>{const n=cb.checked?Math.max(0,p.qty-(Number(have.value)||0)):0;need.textContent=p.qty===null?(cb.checked?'Tjek opskrift':'Udeladt'):(p.approximate?'ca. ':'')+format(n)+' '+p.unit};have.addEventListener('input',()=>{state.adjustments[p.key]=Math.max(0,Number(have.value)||0);save();invalidatePreview();update()});update();wrap.append(label,have,need);ingredientDetails(wrap,p);list.append(wrap)});renderHiddenIngredients();renderWeekDishes();}
 $('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false}});
-$('save').addEventListener('click',()=>{const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines});if(state.selected.length<3)state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
-$('copy').addEventListener('click',async()=>{const lines=aggregate().filter(p=>!state.excluded.includes(p.key)).map(p=>({...p,need:Math.max(0,p.qty-(Number(state.adjustments[p.key])||0))})).filter(p=>p.need>0||p.qty===null).map(p=>p.name+' – '+(p.qty===null?'se opskrift':(p.approximate?'ca. ':'')+format(p.need)+' '+p.unit));if(!lines.length){alert('Ingen varer at kopiere');return}try{await navigator.clipboard.writeText(lines.join('\n'));alert('Indkøbsbehov kopieret')}catch{prompt('Kopiér listen:',lines.join('\n'))}});
+$('save').addEventListener('click',()=>{const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines});state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
+$('copy').addEventListener('click',async()=>{const lines=aggregate().filter(p=>!state.excluded.includes(p.key)&&!state.hiddenIngredients.includes(p.name)).map(p=>({...p,need:Math.max(0,p.qty-(Number(state.adjustments[p.key])||0))})).filter(p=>p.need>0||p.qty===null).map(p=>p.name+' – '+(p.qty===null?'se opskrift':(p.approximate?'ca. ':'')+format(p.need)+' '+p.unit));if(!lines.length){alert('Ingen varer at kopiere');return}try{await navigator.clipboard.writeText(lines.join('\n'));alert('Indkøbsbehov kopieret')}catch{prompt('Kopiér listen:',lines.join('\n'))}});
 $('reset').addEventListener('click',()=>{state.adjustments={};save();invalidatePreview();render()});render();
 
 let previewItems=[];
 let transferBusy=false;
 function invalidatePreview(){previewItems=[];$('preview').hidden=true;}
-function neededItems(){const items=aggregate().filter(p=>!state.excluded.includes(p.key)).map(p=>({...p,need:Math.max(0,p.qty-(Number(state.adjustments[p.key])||0))})).filter(p=>p.need>0||p.qty===null).map(p=>({name:p.name,note:p.qty===null?'Mængde: se opskrift':(p.approximate?'ca. ':'')+format(p.need)+' '+p.unit}));const byName=new Map();for(const item of items){const key=norm(item.name);if(byName.has(key))byName.get(key).note+=' + '+item.note;else byName.set(key,{...item});}return [...byName.values()];}
+function neededItems(){const items=aggregate().filter(p=>!state.excluded.includes(p.key)&&!state.hiddenIngredients.includes(p.name)).map(p=>({...p,need:Math.max(0,p.qty-(Number(state.adjustments[p.key])||0))})).filter(p=>p.need>0||p.qty===null).map(p=>({name:p.name,note:p.qty===null?'Mængde: se opskrift':(p.approximate?'ca. ':'')+format(p.need)+' '+p.unit}));const byName=new Map();for(const item of items){const key=norm(item.name);if(byName.has(key))byName.get(key).note+=' + '+item.note;else byName.set(key,{...item});}return [...byName.values()];}
 async function api(action,payload={}){
   if(!navigator.onLine)throw Error('Du er offline. Forbind til internettet for at bruge eTilbudsavis.');
   const response=await fetch('/api/etilbudsavis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
@@ -84,7 +84,7 @@ function renderWeekDishes(){
     info.append(el('div',dish.day,'muted'),el('strong',dish.title));
     if(dish.notes)info.append(el('p',dish.notes,'muted'));
     const button=el('button',importingDish===dishKey(dish)?'Henter…':selected?'Valgt ✓':'Vælg ret',selected?'secondary':undefined);
-    button.disabled=Boolean(importingDish)||!dish.urls.length||(!selected&&state.selected.length>=3);
+    button.disabled=Boolean(importingDish)||!dish.urls.length;
     button.setAttribute('aria-label',(selected?'Fravælg ':'Vælg ')+dish.title);
     button.addEventListener('click',()=>chooseDish(dish));row.append(info,button);root.append(row);
   });
@@ -95,7 +95,6 @@ async function chooseDish(dish){
   if(recipe&&state.selected.includes(recipe.id)){
     state.selected=state.selected.filter(id=>id!==recipe.id);save();invalidatePreview();render();return;
   }
-  if(state.selected.length>=3){$('week-message').textContent='Du har valgt tre retter. Fravælg en ret først.';return;}
   importingDish=dishKey(dish);renderWeekDishes();$('week-message').textContent='Henter ingredienser til '+dish.title+'…';
   try{
     if(!recipe){
@@ -108,8 +107,8 @@ async function chooseDish(dish){
       recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],lines,sourceKey:dishKey(dish)};
       state.recipes.push(recipe);
     }
-    if(state.selected.length<3&&!state.selected.includes(recipe.id))state.selected.push(recipe.id);
-    save();invalidatePreview();$('week-message').textContent='Retten er hentet. '+state.selected.length+' af 3 retter valgt. Tilpas indkøbsbehovet nedenfor.';
+    if(!state.selected.includes(recipe.id))state.selected.push(recipe.id);
+    save();invalidatePreview();$('week-message').textContent='Retten er hentet. '+state.selected.length+' retter valgt. Tilpas indkøbsbehovet nedenfor.';
   }catch(error){$('week-message').textContent=error.message+' Du kan prøve igen eller bruge et opskriftslink.';}
   finally{importingDish=null;render();}
 }
@@ -120,7 +119,7 @@ async function fetchWeek(){
     const response=await fetch('/api/mealplans?id='+encodeURIComponent(id)),data=await response.json();
     if(!response.ok)throw Error(data.error||'Ugens retter kunne ikke hentes.');if(request!==weekRequest)return;
     currentWeek=data;renderWeekDishes();const link=el('a','Se hele madplanen hos Sund på Budget');link.href=data.url;link.target='_blank';link.rel='noopener noreferrer';$('week-source').append(link);
-    $('week-message').textContent='Vælg op til tre retter. Du kan også hente retter fra en anden uge.';
+    $('week-message').textContent='Vælg en eller flere retter. Du kan også hente retter fra en anden uge.';
   }catch(error){if(request===weekRequest){$('week-message').textContent=error.message;$('retry-weeks').hidden=false;}}
 }
 async function loadWeeks(append=false){
@@ -144,6 +143,10 @@ $('retry-weeks').addEventListener('click',()=>!$('week-select').disabled&&$('wee
 loadWeeks();
 
 function ingredientDetails(wrap,p){
+  const actions=el('div',undefined,'actions');actions.style.gridColumn='1 / -1';
+  const hide=el('button','Skjul fremover','secondary');hide.type='button';hide.setAttribute('aria-label','Skjul '+p.name+' fremover');
+  hide.addEventListener('click',()=>{state.hiddenIngredients=[...new Set([...state.hiddenIngredients,p.name])];save();invalidatePreview();render();});
+  actions.append(hide);wrap.append(actions);
   if(p.sources.length<2&&!p.hasVolume)return;
   const details=el('details');details.style.gridColumn='1 / -1';
   details.append(el('summary',p.sources.length+' ingredienslinje'+(p.sources.length===1?'':'r')+' · se sammenlægning'+(p.hasVolume?' og omregning':'')));
@@ -165,4 +168,17 @@ function ingredientDetails(wrap,p){
     details.append(el('p',p.density?'Volumen omregnes med ca. '+format(p.density)+' g pr. dl. Du kan rette faktoren for din vare.':'Denne råvare har ingen kendt vægtfylde. Angiv gram pr. dl for at lægge volumen og vægt sammen.','muted'));
   }
   wrap.append(details);
+}
+
+function renderHiddenIngredients(){
+  const names=[...state.hiddenIngredients].sort((a,b)=>a.localeCompare(b,'da'));
+  $('hidden-summary').textContent='Skjulte ingredienser ('+names.length+')';
+  const root=$('hidden-ingredients');root.replaceChildren();
+  if(!names.length)root.append(el('p','Brug “Skjul fremover” ved en ingrediens for at skjule den i kommende indkøbslister.','muted'));
+  names.forEach(name=>{
+    const row=el('div',undefined,'recipe row');row.append(el('span',name,'grow'));
+    const button=el('button','Vis igen','secondary');button.type='button';button.setAttribute('aria-label','Vis '+name+' igen');
+    button.addEventListener('click',()=>{state.hiddenIngredients=state.hiddenIngredients.filter(x=>x!==name);save();invalidatePreview();render();});
+    row.append(button);root.append(row);
+  });
 }

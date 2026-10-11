@@ -1,4 +1,4 @@
-const CACHE='madplan-shell-v5';
+const CACHE='madplan-shell-v6';
 const SHELL=['/','/index.html','/app.js','/lib/ingredients.js','/manifest.webmanifest','/apple-touch-icon.png','/icons/icon-192.png','/icons/icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('madplan-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
