@@ -1,19 +1,19 @@
 # Madplan
 
-Mobilvenlig prototype til at samle ingredienser fra op til tre opskrifter og fratrække varer, der allerede er hjemme.
+Mobil webapp: Sund på Budget-opskrifter → samlede ingredienser → fradrag for beholdning → eksisterende indkøbsliste i eTilbudsavis.
 
-## Status
-- [x] Gem opskrifter og links manuelt
-- [x] Vælg op til tre retter
-- [x] Saml ens ingredienser med samme enhed; kg→g, l/dl→ml
-- [x] Fratræk beholdning og udelad varer
-- [x] Lokal lagring i browseren
-- [x] Kopiér indkøbsbehov
-- [ ] Automatisk import fra Sund på Budget
-- [ ] Sikker eTilbudsavis API-integration med dubletkontrol
+Production: https://madplan-woad.vercel.app/
 
-## Prøv
-Åbn index.html i browseren eller publicér via en statisk webhost.
+## Vercel
 
-## Begrænsninger
-Der er endnu ingen automatisk eTilbudsavis-synkronisering. Den uofficielle API skal undersøges og implementeres server-side; aldrig læg credentials i frontend. Import er indtil videre manuel. Ingrediensparseren understøtter simple mængder og enheder, ikke alle varianter. Opskrifter gemmes lokalt i browseren, ikke på tværs af enheder.
+Projektet `madplan` deployer `main` fra `TheBikingVikingDK/madplan`. Buildless HTML med Node.js-funktioner i `api/`. Vercel installerer Cheerio til opskriftsimporten. Ingen database kræves.
+
+Sæt `SESSION_SECRET` som production Secret med 32 tilfældige bytes i hex-format. Den må ikke committtes eller være en offentlig browser-variabel. Miljøændringer kræver en ny deployment. Brug en anden nøgle på previews, hvis login ønskes dér.
+
+## iPhone
+
+Åbn production-adressen i Safari → Del → Føj til hjemmeskærm → Tilføj. Åbn Madplan fra ikonet og log ind i eTilbudsavis. Manifest, PNG-ikoner og standalone metadata er inkluderet. Gemt madplan kan åbnes offline; import og eTilbudsavis kræver internet.
+
+## Tests
+
+`npm test` kører Node.js-tests uden eksterne kald. Se [integrationsbeskrivelsen](docs/etilbudsavis.md) for login, dubletregler og live-testbegrænsninger.
