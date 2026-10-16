@@ -1,7 +1,7 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
-import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan} from './lib/flow.js';
+import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
 const KEY='madplan-mvp-v1';
@@ -20,13 +20,16 @@ function migratePreferences(){
 if(state.ingredientVersion!==3){migratePreferences();save();}
 let previewItems=[],shoppingRevision=0,transferBusy=false;
 let mergeSelection=new Set();
-let wizardStep=stepFromHash(location.hash)||Number(localStorage.getItem('madplan-step'))||1,restartSnapshot=null;
-if(!canVisitStep(wizardStep,state))wizardStep=2;
+let wizardStep=initialFlowStep(location.hash,localStorage.getItem('madplan-step'),localStorage.getItem('madplan-flow-version')),restartSnapshot=null;
+if(!canVisitStep(wizardStep,state))wizardStep=1;
+localStorage.setItem('madplan-flow-version','3');
+history.replaceState(null,'','#trin-'+wizardStep);
 function aggregate(){return selectedIngredients(state)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function render(){
   const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;
   $('selected-count').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
+  $('saved-recipes-summary').textContent='Gemte retter ('+state.recipes.length+')';
   const root=$('recipes');root.replaceChildren();
   if(!state.recipes.length)root.append(el('p','Tilføj din første opskrift på trin 1.','muted'));
   state.recipes.forEach(r=>{
@@ -301,7 +304,7 @@ showExportTarget();
 function wizardBusy(){return transferBusy||Boolean(importingDish)||$('import').disabled;}
 function renderWizard(){
   if(!canVisitStep(wizardStep,state)){
-    wizardStep=2;history.replaceState(null,'','#trin-2');
+    wizardStep=1;history.replaceState(null,'','#trin-1');
   }
   const installed=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
   document.querySelectorAll('[data-step]').forEach(panel=>panel.hidden=Number(panel.dataset.step)!==wizardStep||(panel.id==='install'&&installed));
@@ -318,8 +321,8 @@ function renderWizard(){
   $('wizard-next').hidden=wizardStep===FLOW_STEPS.length;
   $('wizard-next').disabled=blocked||!canVisitStep(wizardStep+1,state);
   $('wizard-next').textContent='Videre: '+(FLOW_STEPS[wizardStep]||'');
-  $('restart-plan').disabled=blocked;
-  if(!blocked&&wizardStep===2&&count===0)$('wizard-message').textContent='Vælg mindst én ret for at gå videre til indkøbslisten.';
+  $('restart-plan').disabled=blocked;$('restart-plan').hidden=wizardStep===1;
+  if(!blocked&&wizardStep===1&&count===0)$('wizard-message').textContent='Vælg mindst én ret for at gå videre til indkøbslisten.';
   else if(!blocked)$('wizard-message').textContent='';
   document.title=FLOW_STEPS[wizardStep-1]+' – Madplan';
   localStorage.setItem('madplan-step',String(wizardStep));
@@ -339,7 +342,7 @@ $('wizard-next').addEventListener('click',()=>goToStep(wizardStep+1));
 window.addEventListener('hashchange',()=>{
   const step=stepFromHash(location.hash)||1;
   if(wizardBusy()){history.replaceState(null,'','#trin-'+wizardStep);return;}
-  goToStep(canVisitStep(step,state)?step:2,{replace:true});
+  goToStep(canVisitStep(step,state)?step:1,{replace:true});
 });
 $('restart-plan').addEventListener('click',()=>{if(!wizardBusy())$('restart-dialog').showModal();});
 $('cancel-restart').addEventListener('click',()=>$('restart-dialog').close());
@@ -359,7 +362,7 @@ $('undo-restart').addEventListener('click',()=>{
   state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded};
   for(const [key,value] of Object.entries(snapshot.draft))$(key).value=value;
   migratePreferences();save();invalidatePreview();$('restart-notice').hidden=true;render();
-  goToStep(canVisitStep(snapshot.step,state)?snapshot.step:2,{replace:true});
+  goToStep(canVisitStep(snapshot.step,state)?snapshot.step:1,{replace:true});
 });
 const initialStep=stepFromHash(location.hash)||Number(localStorage.getItem('madplan-step'))||1;
-goToStep(canVisitStep(initialStep,state)?initialStep:2,{replace:true,focus:false});
+goToStep(canVisitStep(initialStep,state)?initialStep:1,{replace:true,focus:false});

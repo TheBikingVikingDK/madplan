@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {startNewPlan,canVisitStep,stepFromHash} from '../lib/flow.js';
+import {startNewPlan,canVisitStep,stepFromHash,initialFlowStep} from '../lib/flow.js';
 
 test('Starting again clears only the active plan and preserves saved recipes and ingredient preferences',()=>{
   const state={recipes:[{id:'a',lines:['100 g ris']}],selected:['a'],adjustments:{'ris|g':50},excluded:['salt|g'],hiddenIngredients:['vand'],nameAliases:{auberginer:'aubergine'},densities:{ris:80},ingredientVersion:3};
@@ -11,9 +11,13 @@ test('Starting again clears only the active plan and preserves saved recipes and
 });
 test('Saved recipes remain reachable without a selection; shopping and sending require an existing selected recipe',()=>{
   const state={recipes:[{id:'a'}],selected:[]};
-  assert.equal(canVisitStep(1,state),true);assert.equal(canVisitStep(2,state),true);
+  assert.equal(canVisitStep(1,state),true);assert.equal(canVisitStep(2,state),false);
   assert.equal(canVisitStep(3,state),false);assert.equal(canVisitStep(4,state),false);
   state.selected=['deleted'];assert.equal(canVisitStep(4,state),false);
-  state.selected=['a'];assert.equal(canVisitStep(3,state),true);assert.equal(canVisitStep(4,state),true);
-  assert.equal(stepFromHash('#trin-4'),4);assert.equal(stepFromHash('#trin-5'),null);
+  state.selected=['a'];assert.equal(canVisitStep(2,state),true);assert.equal(canVisitStep(3,state),true);assert.equal(canVisitStep(4,state),false);
+  assert.equal(stepFromHash('#trin-3'),3);assert.equal(stepFromHash('#trin-4'),null);
+  assert.equal(initialFlowStep('#trin-3','3',null),2);
+  assert.equal(initialFlowStep('#trin-4','4',null),3);
+  assert.equal(initialFlowStep('#trin-2','2',null),1);
+  assert.equal(initialFlowStep('#trin-2','2','3'),2);
 });
