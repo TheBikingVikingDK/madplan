@@ -31,3 +31,11 @@ Kg/g og l/dl/cl/ml omregnes direkte. Måleskeer regnes som 15 ml/spsk og 5 ml/ts
 Eksisterende beholdning og udeladelser migreres til de nye ingrediensnavne/enheder. Eksisterende varer i eTilbudsavis får tilføjet mængden med de samme navnevarianter; se integrationsbeskrivelsen for tæller og note.
 
 Markér to eller flere ingrediensnavne under **Sammenlæg ingredienser**, vælg det fælles navn og gem. Reglen bruges i fremtidige opskrifter og ved match til eTilbudsavis. Gemte sammenlægninger kan ophæves nederst. Navnene vises med stort startbogstav. Antal valgte retter og indkøbsmængder genberegnes ved hvert valg.
+
+## Apple Påmindelser
+
+I trin 4 kan brugeren vælge Apple Påmindelser som alternativ til eTilbudsavis. Den indbyggede vejledning beskriver en engangsopsætning af genvejen `Madplan til Påmindelser`: Opdel Genvejsinput på nye linjer → Gentag med hver → Tilføj ny påmindelse med Gentag emne som titel i en valgt liste. Brugeren opretter eller vælger listen i Påmindelser. Hver overførsel føjer nye punkter til listen.
+
+Appen sender én URL-kodet tekstlinje pr. ingrediens via Apples dokumenterede `shortcuts://run-shortcut?name=…&input=text&text=…`. Navn og mængde er begge i påmindelsens titel. Eksisterende sammenlægninger, beholdningsfradrag, udeladelser og skjulte ingredienser gælder også her. Ingen eTilbudsavis-session kræves; ingen data sendes til en eksportserver. Appen kan ikke bekræfte oprettelsen i Påmindelser. Den egentlige native afvikling skal verificeres på en Apple-enhed med genvejen installeret.
+
+Kilde: https://support.apple.com/da-dk/guide/shortcuts/apd624386f42/ios

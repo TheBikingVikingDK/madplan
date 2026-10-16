@@ -1,6 +1,7 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
+import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
 const KEY='madplan-mvp-v1';
 const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
@@ -47,14 +48,14 @@ function render(){
     have.addEventListener('input',()=>{state.adjustments[p.key]=Math.max(0,Number(have.value)||0);save();invalidatePreview();update();});
     update();wrap.append(label,have,need);ingredientDetails(wrap,p);list.append(wrap);
   });
-  renderMergeIngredients(entries);renderHiddenIngredients();renderWeekDishes();
+  renderMergeIngredients(entries);renderHiddenIngredients();renderWeekDishes();renderReminders();
 }
 $('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false}});
 $('save').addEventListener('click',()=>{const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines});state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
 $('copy').addEventListener('click',async()=>{const lines=neededItems().map(p=>p.name+' – '+p.note);if(!lines.length){alert('Ingen varer at kopiere');return;}try{await navigator.clipboard.writeText(lines.join('\n'));alert('Indkøbsbehov kopieret');}catch{prompt('Kopiér listen:',lines.join('\n'));}});
 $('reset').addEventListener('click',()=>{state.adjustments={};save();invalidatePreview();render()});render();
 
-function invalidatePreview(){shoppingRevision++;previewItems=[];$('preview').hidden=true;if(currentWeek&&!importingDish){const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;$('week-message').textContent=count+' '+(count===1?'ret valgt':'retter valgt')+'. Vælg eller fravælg retter nedenfor.';}}
+function invalidatePreview(){shoppingRevision++;previewItems=[];$('preview').hidden=true;renderReminders();if(currentWeek&&!importingDish){const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;$('week-message').textContent=count+' '+(count===1?'ret valgt':'retter valgt')+'. Vælg eller fravælg retter nedenfor.';}}
 function neededItems(){return shoppingItems(state);}
 window.addEventListener('storage',event=>{if(event.key===KEY&&event.newValue){try{state={...defaults,...JSON.parse(event.newValue)};migratePreferences();invalidatePreview();render();}catch{}}});
 async function api(action,payload={}){
@@ -257,3 +258,39 @@ $('merge-button').addEventListener('click',()=>{
   try{state.nameAliases=mergeNames(state.nameAliases,[...mergeSelection],$('merge-name').value);migratePreferences();mergeSelection.clear();save();invalidatePreview();render();$('merge-message').textContent='Ingredienserne er sammenlagt og huskes på denne enhed.';}
   catch(error){$('merge-message').textContent=error.message;}
 });
+
+function renderReminders(){
+  const items=neededItems(),titles=reminderTitles(items),ready=localStorage.getItem('madplan-reminders-ready')==='true';
+  $('reminders-ready').checked=ready;
+  $('reminders-count').textContent=titles.length+' '+(titles.length===1?'påmindelse':'påmindelser');
+  const list=$('reminders-items');list.replaceChildren();
+  titles.forEach(title=>list.append(el('li',title)));
+  if(!titles.length)list.append(el('li','Ingen varer at sende. Vælg retter og tilpas indkøbsbehovet.','muted'));
+  const link=$('reminders-export'),enabled=ready&&titles.length>0;
+  link.setAttribute('aria-disabled',String(!enabled));link.tabIndex=enabled?0:-1;
+  if(enabled)link.href=remindersShortcutUrl(items);else link.removeAttribute('href');
+  $('reminders-message').textContent=!ready?'Følg engangsopsætningen ovenfor for at aktivere overførslen.':'';
+}
+function showExportTarget(){
+  const reminders=$('export-target').value==='reminders';
+  $('reminders-panel').hidden=!reminders;$('etilbudsavis-export').hidden=reminders;
+  if(reminders){$('reminders-setup').open=localStorage.getItem('madplan-reminders-ready')!=='true';renderReminders();}
+}
+$('export-target').value=localStorage.getItem('madplan-export-target')==='reminders'?'reminders':'etilbudsavis';
+$('export-target').addEventListener('change',()=>{localStorage.setItem('madplan-export-target',$('export-target').value);showExportTarget();});
+$('reminders-ready').addEventListener('change',()=>{
+  localStorage.setItem('madplan-reminders-ready',String($('reminders-ready').checked));
+  $('reminders-setup').open=!$('reminders-ready').checked;renderReminders();
+});
+$('reminders-export').addEventListener('click',event=>{
+  const items=neededItems();
+  if(localStorage.getItem('madplan-reminders-ready')!=='true'||!items.length){event.preventDefault();renderReminders();return;}
+  // Refresh directly in the user gesture so Safari can hand off to the native app.
+  $('reminders-export').href=remindersShortcutUrl(items);
+  $('reminders-message').textContent='Genveje åbnes med '+items.length+' '+(items.length===1?'vare':'varer')+'. Gennemfør genvejen, og kontrollér listen i Påmindelser.';
+});
+$('copy-shortcut-name').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(REMINDERS_SHORTCUT_NAME);$('reminders-message').textContent='Genvejsnavnet er kopieret.';}
+  catch{$('reminders-message').textContent='Kopiér navnet manuelt: '+REMINDERS_SHORTCUT_NAME;}
+});
+showExportTarget();
