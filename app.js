@@ -1,6 +1,7 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
+import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
 const KEY='madplan-mvp-v1';
@@ -19,13 +20,15 @@ function migratePreferences(){
 if(state.ingredientVersion!==3){migratePreferences();save();}
 let previewItems=[],shoppingRevision=0,transferBusy=false;
 let mergeSelection=new Set();
+let wizardStep=stepFromHash(location.hash)||Number(localStorage.getItem('madplan-step'))||1,restartSnapshot=null;
+if(!canVisitStep(wizardStep,state))wizardStep=2;
 function aggregate(){return selectedIngredients(state)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function render(){
   const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;
   $('selected-count').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
   const root=$('recipes');root.replaceChildren();
-  if(!state.recipes.length)root.append(el('p','Tilføj din første opskrift ovenfor.','muted'));
+  if(!state.recipes.length)root.append(el('p','Tilføj din første opskrift på trin 1.','muted'));
   state.recipes.forEach(r=>{
     const wrap=el('div',undefined,'recipe row'),check=el('input');check.type='checkbox';check.setAttribute('aria-label','Vælg '+r.title);check.checked=state.selected.includes(r.id);
     check.addEventListener('change',()=>{state.selected=check.checked?[...new Set([...state.selected,r.id])]:state.selected.filter(id=>id!==r.id);save();invalidatePreview();render();});
@@ -48,9 +51,9 @@ function render(){
     have.addEventListener('input',()=>{state.adjustments[p.key]=Math.max(0,Number(have.value)||0);save();invalidatePreview();update();});
     update();wrap.append(label,have,need);ingredientDetails(wrap,p);list.append(wrap);
   });
-  renderMergeIngredients(entries);renderHiddenIngredients();renderWeekDishes();renderReminders();
+  renderMergeIngredients(entries);renderHiddenIngredients();renderWeekDishes();renderReminders();renderWizard();
 }
-$('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false}});
+$('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;renderWizard();$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false;renderWizard()}});
 $('save').addEventListener('click',()=>{const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines});state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
 $('copy').addEventListener('click',async()=>{const lines=neededItems().map(p=>p.name+' – '+p.note);if(!lines.length){alert('Ingen varer at kopiere');return;}try{await navigator.clipboard.writeText(lines.join('\n'));alert('Indkøbsbehov kopieret');}catch{prompt('Kopiér listen:',lines.join('\n'));}});
 $('reset').addEventListener('click',()=>{state.adjustments={};save();invalidatePreview();render()});render();
@@ -102,14 +105,14 @@ $('transfer-button').addEventListener('click',()=>busy($('transfer-button'),asyn
   if(transferBusy)return;
   const items=previewItems.filter(x=>x.selected).map(({name,note,aliases,gramsPerDl})=>({name,note,aliases,gramsPerDl}));
   if(!items.length)throw Error('Vælg mindst én vare.');
-  transferBusy=true;$('shopping-list').disabled=true;$('preview-button').disabled=true;$('refresh-lists').disabled=true;
+  transferBusy=true;renderWizard();$('shopping-list').disabled=true;$('preview-button').disabled=true;$('refresh-lists').disabled=true;
   $('connection-message').textContent='Tilføjer varer til eTilbudsavis...';
   try{
     const result=await api('transfer',{listId:$('shopping-list').value,items});
     invalidatePreview();
     $('connection-message').textContent=result.added.length+' varer tilføjet. '+result.updated.length+' eksisterende varer opdateret.'+(result.uncertain?' Overførslen stoppede ved '+result.uncertain+'. '+result.error+' Gennemgå varerne igen før næste forsøg.':' Se varerne i eTilbudsavis.');
   }catch(error){invalidatePreview();throw Error(error.message+' Kontrollér listen i eTilbudsavis og gennemgå varerne igen før næste forsøg.');}
-  finally{transferBusy=false;$('shopping-list').disabled=false;$('preview-button').disabled=false;$('refresh-lists').disabled=false;}
+  finally{transferBusy=false;renderWizard();$('shopping-list').disabled=false;$('preview-button').disabled=false;$('refresh-lists').disabled=false;}
 }));
 if(window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)$('install').hidden=true;
 api('status').then(async data=>{showConnected(data.connected);if(!data.configured)$('connection-message').textContent='Login mangler serveropsætning.';else if(data.connected)await loadLists();}).catch(error=>$('connection-message').textContent=error.message);
@@ -137,7 +140,7 @@ async function chooseDish(dish){
   if(recipe&&state.selected.includes(recipe.id)){
     state.selected=state.selected.filter(id=>id!==recipe.id);save();invalidatePreview();render();return;
   }
-  importingDish=dishKey(dish);renderWeekDishes();$('week-message').textContent='Henter ingredienser til '+dish.title+'…';
+  importingDish=dishKey(dish);renderWeekDishes();renderWizard();$('week-message').textContent='Henter ingredienser til '+dish.title+'…';
   try{
     if(!recipe){
       const lines=[];
@@ -294,3 +297,69 @@ $('copy-shortcut-name').addEventListener('click',async()=>{
   catch{$('reminders-message').textContent='Kopiér navnet manuelt: '+REMINDERS_SHORTCUT_NAME;}
 });
 showExportTarget();
+
+function wizardBusy(){return transferBusy||Boolean(importingDish)||$('import').disabled;}
+function renderWizard(){
+  if(!canVisitStep(wizardStep,state)){
+    wizardStep=2;history.replaceState(null,'','#trin-2');
+  }
+  const installed=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
+  document.querySelectorAll('[data-step]').forEach(panel=>panel.hidden=Number(panel.dataset.step)!==wizardStep||(panel.id==='install'&&installed));
+  const count=state.recipes.filter(recipe=>state.selected.includes(recipe.id)).length;
+  $('wizard-progress').textContent='Trin '+wizardStep+' af '+FLOW_STEPS.length+' · '+FLOW_STEPS[wizardStep-1];
+  $('wizard-selection').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
+  const blocked=wizardBusy();
+  document.querySelectorAll('[data-step-target]').forEach(button=>{
+    const target=Number(button.dataset.stepTarget);
+    if(target===wizardStep)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
+    button.disabled=blocked||!canVisitStep(target,state);
+  });
+  $('wizard-back').hidden=wizardStep===1;$('wizard-back').disabled=blocked;
+  $('wizard-next').hidden=wizardStep===FLOW_STEPS.length;
+  $('wizard-next').disabled=blocked||!canVisitStep(wizardStep+1,state);
+  $('wizard-next').textContent='Videre: '+(FLOW_STEPS[wizardStep]||'');
+  $('restart-plan').disabled=blocked;
+  if(!blocked&&wizardStep===2&&count===0)$('wizard-message').textContent='Vælg mindst én ret for at gå videre til indkøbslisten.';
+  else if(!blocked)$('wizard-message').textContent='';
+  document.title=FLOW_STEPS[wizardStep-1]+' – Madplan';
+  localStorage.setItem('madplan-step',String(wizardStep));
+}
+function goToStep(step,{replace=false,focus=true}={}){
+  if(wizardBusy()){$('wizard-message').textContent='Vent, til den igangværende overførsel eller import er færdig.';return;}
+  if(!canVisitStep(step,state))return;
+  wizardStep=step;
+  const hash='#trin-'+step;
+  if(location.hash!==hash)history[replace?'replaceState':'pushState'](null,'',hash);
+  renderWizard();
+  if(focus){window.scrollTo(0,0);$('step-title-'+wizardStep).focus({preventScroll:true});}
+}
+document.querySelectorAll('[data-step-target]').forEach(button=>button.addEventListener('click',()=>goToStep(Number(button.dataset.stepTarget))));
+$('wizard-back').addEventListener('click',()=>goToStep(wizardStep-1));
+$('wizard-next').addEventListener('click',()=>goToStep(wizardStep+1));
+window.addEventListener('hashchange',()=>{
+  const step=stepFromHash(location.hash)||1;
+  if(wizardBusy()){history.replaceState(null,'','#trin-'+wizardStep);return;}
+  goToStep(canVisitStep(step,state)?step:2,{replace:true});
+});
+$('restart-plan').addEventListener('click',()=>{if(!wizardBusy())$('restart-dialog').showModal();});
+$('cancel-restart').addEventListener('click',()=>$('restart-dialog').close());
+$('confirm-restart').addEventListener('click',()=>{
+  if(wizardBusy())return;
+  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],step:wizardStep,
+    draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
+  state=startNewPlan(state);mergeSelection.clear();save();invalidatePreview();
+  $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
+  $('restart-dialog').close();$('restart-notice').hidden=false;
+  wizardStep=1;render();goToStep(1,{replace:true});
+  if($('week-select').options.length&&!$('week-select').disabled){$('week-select').selectedIndex=0;fetchWeek();}
+});
+$('undo-restart').addEventListener('click',()=>{
+  if(!restartSnapshot||wizardBusy())return;
+  const snapshot=restartSnapshot;restartSnapshot=null;
+  state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded};
+  for(const [key,value] of Object.entries(snapshot.draft))$(key).value=value;
+  migratePreferences();save();invalidatePreview();$('restart-notice').hidden=true;render();
+  goToStep(canVisitStep(snapshot.step,state)?snapshot.step:2,{replace:true});
+});
+const initialStep=stepFromHash(location.hash)||Number(localStorage.getItem('madplan-step'))||1;
+goToStep(canVisitStep(initialStep,state)?initialStep:2,{replace:true,focus:false});

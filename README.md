@@ -39,3 +39,9 @@ I trin 4 kan brugeren vælge Apple Påmindelser som alternativ til eTilbudsavis.
 Appen sender én URL-kodet tekstlinje pr. ingrediens via Apples dokumenterede `shortcuts://run-shortcut?name=…&input=text&text=…`. Navn og mængde er begge i påmindelsens titel. Eksisterende sammenlægninger, beholdningsfradrag, udeladelser og skjulte ingredienser gælder også her. Ingen eTilbudsavis-session kræves; ingen data sendes til en eksportserver. Appen kan ikke bekræfte oprettelsen i Påmindelser. Den egentlige native afvikling skal verificeres på en Apple-enhed med genvejen installeret.
 
 Kilde: https://support.apple.com/da-dk/guide/shortcuts/apd624386f42/ios
+
+## Trinvis navigation
+
+Appens fire trin vises som separate sider med hash-adresserne `#trin-1` til `#trin-4`. Videre, Tilbage, trinnavigation og browserens tilbage/ frem-knapper bevarer indtastninger og valg. Sidste trin huskes lokalt ved genindlæsning. Trin 3 og 4 kræver mindst én valgt ret. Ingrediensgrupper og skjulte ingredienser findes nederst på trin 3.
+
+Start forfra viser en forklaring og nulstiller kun den aktuelle plans valg, beholdningsfradrag og udeladelser. Gemte opskrifter, skjulte ingredienser, sammenlægninger, omregningsfaktorer, login og eksportopsætning bevares. Fortryd gendanner den tidligere plan i samme åbne side. Navigation og genstart blokeres under import og overførsel, så igangværende arbejde ikke blandes med en ny plan.
