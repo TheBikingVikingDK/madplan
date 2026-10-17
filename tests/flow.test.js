@@ -14,10 +14,12 @@ test('Saved recipes remain reachable without a selection; shopping and sending r
   assert.equal(canVisitStep(1,state),true);assert.equal(canVisitStep(2,state),false);
   assert.equal(canVisitStep(3,state),false);assert.equal(canVisitStep(4,state),false);
   state.selected=['deleted'];assert.equal(canVisitStep(4,state),false);
-  state.selected=['a'];assert.equal(canVisitStep(2,state),true);assert.equal(canVisitStep(3,state),true);assert.equal(canVisitStep(4,state),false);
-  assert.equal(stepFromHash('#trin-3'),3);assert.equal(stepFromHash('#trin-4'),null);
+  state.selected=['a'];assert.equal(canVisitStep(2,state),true);assert.equal(canVisitStep(3,state),true);assert.equal(canVisitStep(4,state),true);
+  assert.equal(stepFromHash('#trin-3'),3);assert.equal(stepFromHash('#trin-4'),4);
   assert.equal(initialFlowStep('#trin-3','3',null),2);
   assert.equal(initialFlowStep('#trin-4','4',null),3);
   assert.equal(initialFlowStep('#trin-2','2',null),1);
   assert.equal(initialFlowStep('#trin-2','2','3'),2);
+  assert.equal(initialFlowStep('#trin-4','4','4-plan'),4);
+  assert.equal(initialFlowStep('#trin-4','4','3'),4);
 });
