@@ -5,6 +5,8 @@ import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
 import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
+const recipeRequests=new Map();
+let previewRequest=0;
 const KEY='madplan-mvp-v1';
 const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
@@ -36,7 +38,8 @@ function render(){
   state.recipes.forEach(r=>{
     const wrap=el('div',undefined,'recipe row'),check=el('input');check.type='checkbox';check.setAttribute('aria-label','Vælg '+r.title);check.checked=state.selected.includes(r.id);
     check.addEventListener('change',()=>{state.selected=check.checked?[...new Set([...state.selected,r.id])]:state.selected.filter(id=>id!==r.id);save();invalidatePreview();render();});
-    const info=el('div',undefined,'grow');info.append(el('strong',r.title),el('div',r.lines.length+' ingredienser','muted'));
+    const info=el('div',undefined,'grow');info.append(recipePreviewButton(r),el('div',r.lines.length+' ingredienser','muted'));
+    addRecipeThumbnail(info,r);
     if(r.url){const a=el('a','Åbn opskrift');a.href=r.url;a.target='_blank';a.rel='noopener noreferrer';info.append(a);}
     const remove=el('button','Slet','danger');remove.addEventListener('click',()=>{if(!confirm('Slet opskriften?'))return;state.recipes=state.recipes.filter(x=>x.id!==r.id);state.selected=state.selected.filter(x=>x!==r.id);save();invalidatePreview();render();});
     wrap.append(check,info,remove);root.append(wrap);
@@ -130,7 +133,8 @@ function renderWeekDishes(){
   currentWeek.dishes.forEach(dish=>{
     const saved=savedDish(dish),selected=saved&&state.selected.includes(saved.id);
     const row=el('div',undefined,'recipe row'),info=el('div',undefined,'grow');
-    info.append(el('div',dish.day,'muted'),el('strong',dish.title));
+    info.append(el('div',dish.day,'muted'),recipePreviewButton(dish));
+    addRecipeThumbnail(info,dish);
     if(dish.notes)info.append(el('p',dish.notes,'muted'));
     const button=el('button',importingDish===dishKey(dish)?'Henter…':selected?'Valgt ✓':'Vælg ret',selected?'secondary':undefined);
     button.disabled=Boolean(importingDish)||!dish.urls.length;
@@ -147,13 +151,12 @@ async function chooseDish(dish){
   importingDish=dishKey(dish);renderWeekDishes();renderWizard();$('week-message').textContent='Henter ingredienser til '+dish.title+'…';
   try{
     if(!recipe){
-      const lines=[];
+      const lines=[];let image=null;
       for(const url of dish.urls){
-        const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();
-        if(!response.ok)throw Error(data.error||'Opskriften kunne ikke hentes.');lines.push(...data.lines);
+        const data=await fetchRecipe(url);image ||= data.image;lines.push(...data.lines);
       }
       lines.push(...dish.extraLines);
-      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],lines,sourceKey:dishKey(dish)};
+      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],image,lines,sourceKey:dishKey(dish)};
       state.recipes.push(recipe);
     }
     if(!state.selected.includes(recipe.id))state.selected.push(recipe.id);
@@ -400,3 +403,67 @@ function renderMealPlan(){
     root.append(card);
   });
 }
+
+
+function fetchRecipe(url){
+  if(!recipeRequests.has(url)){
+    const request=fetch('/api/import?url='+encodeURIComponent(url)).then(async response=>{
+      const data=await response.json();if(!response.ok)throw Error(data.error||'Opskriften kunne ikke hentes.');return data;
+    });
+    recipeRequests.set(url,request);request.catch(()=>recipeRequests.delete(url));
+  }
+  return recipeRequests.get(url);
+}
+function previewLinks(recipe){return recipeLinks(recipe);}
+function recipePreviewButton(recipe){
+  const button=el('button',recipe.title,'recipe-title');button.type='button';
+  button.setAttribute('aria-label','Se opskrift: '+recipe.title);
+  button.addEventListener('click',()=>openRecipePreview(recipe));return button;
+}
+function addRecipeThumbnail(root,recipe){
+  const url=previewLinks(recipe).find(url=>new URL(url).hostname==='sundpaabudget.dk');
+  if(!url&&!recipe.image)return;
+  const button=el('button',undefined,'recipe-thumbnail');button.type='button';button.hidden=true;
+  button.setAttribute('aria-label','Se billede og opskrift: '+recipe.title);
+  const image=el('img');image.alt='';image.width=88;image.height=70;
+  image.addEventListener('error',()=>button.hidden=true);
+  image.addEventListener('load',()=>button.hidden=false);
+  button.append(image);button.addEventListener('click',()=>openRecipePreview(recipe));root.prepend(button);
+  if(recipe.image){image.src=recipe.image;return;}
+  // Load metadata only when this row is near the viewport (including saved recipes).
+  const observer=new IntersectionObserver(entries=>{
+    if(!entries.some(entry=>entry.isIntersecting))return;
+    observer.disconnect();fetchRecipe(url).then(data=>{if(data.image)image.src=data.image;}).catch(()=>{});
+  },{rootMargin:'150px'});
+  observer.observe(root);
+}
+async function openRecipePreview(recipe){
+  const request=++previewRequest,body=$('recipe-preview-body'),links=previewLinks(recipe);
+  $('recipe-preview-title').textContent=recipe.title;body.replaceChildren();
+  const actions=el('div',undefined,'actions');
+  links.forEach((url,index)=>{const link=el('a',links.length>1?'Åbn opskrift '+(index+1):'Åbn hele opskriften','button-link');link.href=url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);});
+  body.append(actions);
+  const content=el('div');body.append(content);
+  if(!$('recipe-preview').open)$('recipe-preview').showModal();
+  const show=(parts)=>{
+    content.replaceChildren();
+    for(const part of parts){
+      if(part.image){const image=el('img',undefined,'recipe-preview-image');image.src=part.image;image.alt=part.title||recipe.title;image.addEventListener('error',()=>image.remove());content.append(image);}
+      if(parts.length>1)content.append(el('h3',part.title));
+      if(part.lines?.length){content.append(el('h3','Ingredienser'));const list=el('ul');part.lines.forEach(line=>list.append(el('li',line)));content.append(list);}
+    }
+    if(recipe.extraLines?.length){content.append(el('h3','Tilbehør / ekstra'));const list=el('ul');recipe.extraLines.forEach(line=>list.append(el('li',line)));content.append(list);}
+  };
+  if(recipe.lines)show([recipe]);else content.append(el('p','Henter billede og ingredienser…','muted'));
+  const importLinks=links.filter(url=>new URL(url).hostname==='sundpaabudget.dk');
+  if(!importLinks.length)return;
+  try{
+    const parts=await Promise.all(importLinks.map(fetchRecipe));
+    if(request===previewRequest&&$('recipe-preview').open)show(parts);
+  }catch{
+    if(request!==previewRequest||!$('recipe-preview').open)return;
+    if(!recipe.lines)content.replaceChildren(el('p','Forhåndsvisningen kunne ikke hentes. Åbn hele opskriften via linket ovenfor.','muted'));
+  }
+}
+$('close-recipe-preview').addEventListener('click',()=>$('recipe-preview').close());
+$('recipe-preview').addEventListener('close',()=>previewRequest++);
