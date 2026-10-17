@@ -360,7 +360,7 @@ $('restart-plan').addEventListener('click',()=>{if(!wizardBusy())$('restart-dial
 $('cancel-restart').addEventListener('click',()=>$('restart-dialog').close());
 $('confirm-restart').addEventListener('click',()=>{
   if(wizardBusy())return;
-  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],step:wizardStep,
+  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,step:wizardStep,
     draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
   state=startNewPlan(state);state.planProgress={stage:'planning',sentAt:null,fingerprint:null};mergeSelection.clear();save();invalidatePreview();
   $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
@@ -371,7 +371,7 @@ $('confirm-restart').addEventListener('click',()=>{
 $('undo-restart').addEventListener('click',()=>{
   if(!restartSnapshot||wizardBusy())return;
   const snapshot=restartSnapshot;restartSnapshot=null;
-  state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded};
+  state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded,planProgress:snapshot.planProgress};
   for(const [key,value] of Object.entries(snapshot.draft))$(key).value=value;
   migratePreferences();save();invalidatePreview();$('restart-notice').hidden=true;render();
   goToStep(canVisitStep(snapshot.step,state)?snapshot.step:1,{replace:true});

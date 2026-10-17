@@ -47,3 +47,11 @@ test('Storage transport ETag formatting cannot cause a false client revision con
   const result=await store.update(created.code,created.revision,sharedDocument(state(),2));
   assert.equal(result.document.step,2);assert.equal((await store.read(created.code)).revision,result.revision);
 });
+
+test('Two simultaneous writes cannot both succeed with the same revision',async()=>{
+  const store=createPlanStore(fakeStorage()),created=await store.create(sharedDocument(state(),1));
+  const results=await Promise.allSettled([store.update(created.code,created.revision,sharedDocument(state(),2)),store.update(created.code,created.revision,sharedDocument(state(),4))]);
+  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+  const rejected=results.find(result=>result.status==='rejected');assert.equal(rejected.reason.status,409);
+  const winner=results.find(result=>result.status==='fulfilled');assert.equal((await store.read(created.code)).document.step,winner.value.document.step);
+});
