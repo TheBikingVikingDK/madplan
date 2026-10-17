@@ -513,9 +513,9 @@ sharedController=connectCloud({
   applyDocument:document=>{state=applySharedDocument(state,document);localStorage.setItem(KEY,JSON.stringify(state));invalidatePreview();render();renderSharedStatus();},
   navigate:step=>goToStep(canVisitStep(step,state)?step:1,{replace:true,focus:false}),
   canApply:()=>!wizardBusy()&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName),
-  renderStatus:renderSharedStatus
+  renderStatus:()=>{renderSharedStatus();ensurePortionData();}
 });
-renderSharedStatus();
+renderSharedStatus();ensurePortionData();
 
 
 $('people').addEventListener('change',()=>{
@@ -557,6 +557,7 @@ function renderPortionChoices(){
   });
 }
 function ensurePortionData(){
+  if(!sharedController||sharedController.isOpening())return;
   for(const recipe of planRecipes(state)){
     if(recipe.portionsChecked||portionRequests.has(recipe.id))continue;
     const urls=recipeLinks(recipe).filter(url=>new URL(url).hostname==='sundpaabudget.dk');
