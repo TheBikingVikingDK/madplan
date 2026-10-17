@@ -39,3 +39,11 @@ test('Cloud API rejects cross-origin requests and returns no plan listing',async
   assert.equal((await call({method:'POST',headers:{origin:'https://attacker.example',host:'madplan.test'},body:{action:'read'}})).status,403);
   assert.equal((await call({method:'GET',headers:{}})).status,405);
 });
+
+test('Storage transport ETag formatting cannot cause a false client revision conflict',async()=>{
+  const backend=fakeStorage(),put=backend.put.bind(backend);
+  backend.put=async(...args)=>{const result=await put(...args);return {etag:'different-transport-'+result.etag};};
+  const store=createPlanStore(backend),created=await store.create(sharedDocument(state(),1));
+  const result=await store.update(created.code,created.revision,sharedDocument(state(),2));
+  assert.equal(result.document.step,2);assert.equal((await store.read(created.code)).revision,result.revision);
+});
