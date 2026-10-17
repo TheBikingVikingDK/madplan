@@ -1,4 +1,5 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
+import {openDialog,closeDialog} from './lib/dialogs.js';
 import {peopleCount,recipeCount,baseServings,recipeMultiplier} from './lib/portions.js';
 import {connectCloud} from './lib/cloud.js';
 import {sharedDocument,applySharedDocument} from './lib/shared-plan.js';
@@ -358,15 +359,15 @@ window.addEventListener('hashchange',()=>{
   if(wizardBusy()){history.replaceState(null,'','#trin-'+wizardStep);return;}
   goToStep(canVisitStep(step,state)?step:1,{replace:true});
 });
-$('restart-plan').addEventListener('click',()=>{if(!wizardBusy())$('restart-dialog').showModal();});
-$('cancel-restart').addEventListener('click',()=>$('restart-dialog').close());
+$('restart-plan').addEventListener('click',()=>{if(!wizardBusy())openDialog($('restart-dialog'));});
+$('cancel-restart').addEventListener('click',()=>closeDialog($('restart-dialog')));
 $('confirm-restart').addEventListener('click',()=>{
   if(wizardBusy())return;
   restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,recipeCounts:{...state.recipeCounts},step:wizardStep,
     draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
   state=startNewPlan(state);state.planProgress={stage:'planning',sentAt:null,fingerprint:null};mergeSelection.clear();save();invalidatePreview();
   $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
-  $('restart-dialog').close();$('restart-notice').hidden=false;
+  closeDialog($('restart-dialog'));$('restart-notice').hidden=false;
   wizardStep=1;render();goToStep(1,{replace:true});
   if($('week-select').options.length&&!$('week-select').disabled){$('week-select').selectedIndex=0;fetchWeek();}
 });
@@ -458,7 +459,7 @@ async function openRecipePreview(recipe){
   links.forEach((url,index)=>{const link=el('a',links.length>1?'Åbn opskrift '+(index+1):'Åbn hele opskriften','button-link');link.href=url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);});
   body.append(actions);
   const content=el('div');body.append(content);
-  if(!$('recipe-preview').open)$('recipe-preview').showModal();
+  if(!$('recipe-preview').open)openDialog($('recipe-preview'));
   const show=(parts)=>{
     content.replaceChildren();
     content.append(el('p',recipeTimeLabel(totalRecipeMinutes(parts)),'notice recipe-time'));
@@ -481,7 +482,7 @@ async function openRecipePreview(recipe){
     if(!recipe.lines)content.replaceChildren(el('p','Forhåndsvisningen kunne ikke hentes. Åbn hele opskriften via linket ovenfor.','muted'));
   }
 }
-$('close-recipe-preview').addEventListener('click',()=>$('recipe-preview').close());
+$('close-recipe-preview').addEventListener('click',()=>closeDialog($('recipe-preview')));
 $('recipe-preview').addEventListener('close',()=>previewRequest++);
 
 

@@ -75,3 +75,5 @@ Aktuelt forløb: 1 Vælg retter, 2 Tilpas mængder, 3 Tilpas indkøb, 4 Send ind
 Deling vises som en tydelig grøn boks øverst med knapperne Gem og del / Del fælles madplan samt Åbn med kode. Knapperne åbner en native modal dialog med fokusstyring, Luk og Escape. Delingskode, link, oprettelse, status og eksisterende delingsfunktioner findes i dialogen. Gemmestatus og fejl er også synlige i boksen, når dialogen er lukket.
 
 Delingsboksen i sidetoppen er erstattet af en 46 px ikonknap øverst til højre ved trinnavigationen. Knappen bruger et delingsikon med tilgængeligt navn og bevarer den eksisterende popup. Valgt-antal er fjernet fra toplinjen; fælles status findes i popup’en. En lille prik markerer gemt/afventende/konflikt uden at fylde på siden.
+
+Alle popup’er bruger en fælles scroll-lås: siden fastlåses før åbning, kun dialogen kan rulle, og baggrundens position samt tidligere inline-styles gendannes ved Luk/Escape. Scroll chaining fra popup’en begrænses med overscroll-behavior. Flere åbne dialoger holder låsen, indtil den sidste er lukket.
