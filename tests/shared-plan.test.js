@@ -7,7 +7,7 @@ import handler from '../api/plans.js';
 const state=()=>({recipes:[{id:'a',title:'Risret',url:'https://sundpaabudget.dk/ris/',lines:['200 g ris']},{id:'private',title:'Privat opskrift',lines:['1 løg']}],selected:['a'],adjustments:{'ris|g':20},excluded:[],densities:{},hiddenIngredients:['salt'],nameAliases:{},sessionToken:'secret'});
 function fakeStorage(){
   const records=new Map();let revision=0;
-  return {records,async get(path,options){assert.equal(options.access,'private');assert.equal(options.useCache,false);const item=records.get(path);return item?{stream:new Response(item.body).body,blob:{etag:item.etag}}:null;},async put(path,body,options){assert.equal(options.access,'private');const old=records.get(path);if(options.ifMatch&&old?.etag!==options.ifMatch)throw new BlobPreconditionFailedError();if(!options.allowOverwrite&&old)throw Error('exists');const etag=String(++revision);records.set(path,{body,etag});return {etag};}};
+  return {records,async get(path,options){assert.equal(options.access,'private');assert.equal(options.useCache,false);const item=records.get(path);return item?{stream:new Response(item.body).body,blob:{etag:'"'+item.etag+'"'}}:null;},async put(path,body,options){assert.equal(options.access,'private');const old=records.get(path);if(options.ifMatch&&old?.etag!==options.ifMatch)throw new BlobPreconditionFailedError();if(!options.allowOverwrite&&old)throw Error('exists');const etag=String(++revision);records.set(path,{body,etag});return {etag};}};
 }
 test('Shared plans contain selected dishes and preferences but no unselected recipes or credentials',()=>{
   const local=state(),document=validateSharedDocument(sharedDocument(local,3));
