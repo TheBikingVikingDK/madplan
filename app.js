@@ -6,7 +6,7 @@ import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './li
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
 import {totalRecipeMinutes,recipeTimeLabel} from './lib/recipe-time.js';
 import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
-import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep} from './lib/flow.js';
+import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep,migrateSharedStep} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
 const recipeRequests=new Map(),portionRequests=new Set();
@@ -31,12 +31,13 @@ let previewItems=[],shoppingRevision=0,transferBusy=false;
 let mergeSelection=new Set();
 let wizardStep=initialFlowStep(location.hash,localStorage.getItem('madplan-step'),localStorage.getItem('madplan-flow-version')),restartSnapshot=null;
 if(!canVisitStep(wizardStep,state))wizardStep=1;
-localStorage.setItem('madplan-flow-version','4-plan');
+localStorage.setItem('madplan-flow-version','5-portions');
 history.replaceState(null,'','#trin-'+wizardStep);
 function aggregate(){return selectedIngredients(state)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function render(){
-  $('people').value=peopleCount(state);renderPortionChoices();ensurePortionData();
+  $('people').value=peopleCount(state);$('people-minus').disabled=peopleCount(state)<=1;$('people-plus').disabled=peopleCount(state)>=100;
+  $('portion-people').textContent='Madplanen er til '+peopleCount(state)+' personer. Ændr antal personer på trin 1.';renderPortionChoices();ensurePortionData();
   const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;
   $('selected-count').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
   $('saved-recipes-summary').textContent='Gemte retter ('+state.recipes.length+')';
@@ -497,13 +498,13 @@ $('plan-progress').addEventListener('change',()=>{
   const stage=$('plan-progress').value;
   state.planProgress={stage,sentAt:['sent','partial'].includes(stage)?new Date().toISOString():null,fingerprint:['sent','partial'].includes(stage)?shoppingFingerprint():null};save();renderSharedStatus();
 });
-function backupLocalPlan(){localStorage.setItem('madplan-before-cloud',JSON.stringify({state,step:wizardStep}));}
+function backupLocalPlan(){localStorage.setItem('madplan-before-cloud',JSON.stringify({state,step:wizardStep,flowVersion:5}));}
 $('restore-local-plan').addEventListener('click',()=>{
   let backup;try{backup=JSON.parse(localStorage.getItem('madplan-before-cloud')||'null');}catch{}
   if(!backup?.state){$('cloud-message').textContent='Der er ingen lokal sikkerhedskopi endnu.';return;}
   if(sharedController?.isConnected()){$('cloud-message').textContent='Vælg Fortsæt lokalt, før du gendanner sikkerhedskopien.';return;}
   if(!confirm('Gendan den tidligere lokale plan? Den aktuelle lokale plan erstattes.'))return;
-  state={...defaults,...backup.state};save();invalidatePreview();render();goToStep(canVisitStep(backup.step,state)?backup.step:1,{replace:true});renderSharedStatus();
+  state={...defaults,...backup.state};save();invalidatePreview();render();goToStep(canVisitStep(migrateSharedStep(backup.step,backup.flowVersion),state)?migrateSharedStep(backup.step,backup.flowVersion):1,{replace:true});renderSharedStatus();
 });
 sharedController=connectCloud({
   incoming:incomingPlanCode,
@@ -574,4 +575,10 @@ function ensurePortionData(){
       save();invalidatePreview();
     }).catch(()=>{recipe.portionsChecked=true;}).finally(()=>{portionRequests.delete(recipe.id);render();});
   }
+}
+
+for(const [id,change] of [['people-minus',-1],['people-plus',1]]){
+  $(id).addEventListener('click',()=>{
+    state.people=Math.max(1,Math.min(100,peopleCount(state)+change));save();invalidatePreview();render();$(id).focus({preventScroll:true});
+  });
 }

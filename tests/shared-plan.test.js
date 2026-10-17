@@ -62,3 +62,9 @@ test('Updates from an older open client preserve shared people and meal counts',
   const updated=await store.update(created.code,created.revision,old);
   assert.equal(updated.document.state.people,6);assert.equal(updated.document.state.recipeCounts.a,2);
 });
+
+test('Legacy cloud plans keep their logical page when the quantity step is inserted',()=>{
+  const doc=sharedDocument(state(),4);delete doc.flowVersion;
+  assert.equal(validateSharedDocument(doc).step,5);
+  const current=sharedDocument(state(),5);assert.equal(validateSharedDocument(current).step,5);
+});
