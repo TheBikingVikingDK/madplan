@@ -1,4 +1,6 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
+import {connectCloud} from './lib/cloud.js';
+import {sharedDocument,applySharedDocument} from './lib/shared-plan.js';
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
 import {totalRecipeMinutes,recipeTimeLabel} from './lib/recipe-time.js';
@@ -8,11 +10,13 @@ import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib
 
 const recipeRequests=new Map();
 let previewRequest=0;
+const incomingPlanCode=new URLSearchParams(location.hash.slice(1)).get('plan');
+let sharedController=null;
 const KEY='madplan-mvp-v1';
 const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
-const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
+const save=()=>{localStorage.setItem(KEY,JSON.stringify(state));sharedController?.changed();};
 function migratePreferences(){
   const factors={...state.densities};
   for(const [name,value] of Object.entries(factors)){const resolved=resolveName(name,state.nameAliases);if(factors[resolved]===undefined)factors[resolved]=value;}
@@ -68,7 +72,8 @@ $('reset').addEventListener('click',()=>{state.adjustments={};save();invalidateP
 
 function invalidatePreview(){shoppingRevision++;previewItems=[];$('preview').hidden=true;renderReminders();if(currentWeek&&!importingDish){const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;$('week-message').textContent=count+' '+(count===1?'ret valgt':'retter valgt')+'. Vælg eller fravælg retter nedenfor.';}}
 function neededItems(){return shoppingItems(state);}
-window.addEventListener('storage',event=>{if(event.key===KEY&&event.newValue){try{state={...defaults,...JSON.parse(event.newValue)};migratePreferences();invalidatePreview();render();}catch{}}});
+function shoppingFingerprint(){return JSON.stringify(neededItems().map(({name,note})=>({name,note})).sort((a,b)=>a.name.localeCompare(b.name,'da')));}
+window.addEventListener('storage',event=>{if(sharedController?.isConnected())return;if(event.key===KEY&&event.newValue){try{state={...defaults,...JSON.parse(event.newValue)};migratePreferences();invalidatePreview();render();}catch{}}});
 async function api(action,payload={}){
   if(!navigator.onLine)throw Error('Du er offline. Forbind til internettet for at bruge eTilbudsavis.');
   const response=await fetch('/api/etilbudsavis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
@@ -118,6 +123,7 @@ $('transfer-button').addEventListener('click',()=>busy($('transfer-button'),asyn
   try{
     const result=await api('transfer',{listId:$('shopping-list').value,items});
     invalidatePreview();
+    state.planProgress={stage:result.uncertain?'partial':'sent',sentAt:new Date().toISOString(),fingerprint:shoppingFingerprint()};save();
     $('connection-message').textContent=result.added.length+' varer tilføjet. '+result.updated.length+' eksisterende varer opdateret.'+(result.uncertain?' Overførslen stoppede ved '+result.uncertain+'. '+result.error+' Gennemgå varerne igen før næste forsøg.':' Se varerne i eTilbudsavis.');
   }catch(error){invalidatePreview();throw Error(error.message+' Kontrollér listen i eTilbudsavis og gennemgå varerne igen før næste forsøg.');}
   finally{transferBusy=false;renderWizard();$('shopping-list').disabled=false;$('preview-button').disabled=false;$('refresh-lists').disabled=false;}
@@ -309,7 +315,7 @@ showExportTarget();
 function wizardBusy(){return transferBusy||Boolean(importingDish)||$('import').disabled;}
 function renderWizard(){
   if(!canVisitStep(wizardStep,state)){
-    wizardStep=1;history.replaceState(null,'','#trin-1');
+    wizardStep=1;sharedController?.stepChanged(1);history.replaceState(null,'','#trin-1');
   }
   const installed=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
   document.querySelectorAll('[data-step]').forEach(panel=>panel.hidden=Number(panel.dataset.step)!==wizardStep||(panel.id==='install'&&installed));
@@ -336,6 +342,7 @@ function goToStep(step,{replace=false,focus=true}={}){
   if(wizardBusy()){$('wizard-message').textContent='Vent, til den igangværende overførsel eller import er færdig.';return;}
   if(!canVisitStep(step,state))return;
   wizardStep=step;
+  sharedController?.stepChanged(step);
   const hash='#trin-'+step;
   if(location.hash!==hash)history[replace?'replaceState':'pushState'](null,'',hash);
   renderWizard();
@@ -355,7 +362,7 @@ $('confirm-restart').addEventListener('click',()=>{
   if(wizardBusy())return;
   restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],step:wizardStep,
     draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
-  state=startNewPlan(state);mergeSelection.clear();save();invalidatePreview();
+  state=startNewPlan(state);state.planProgress={stage:'planning',sentAt:null,fingerprint:null};mergeSelection.clear();save();invalidatePreview();
   $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
   $('restart-dialog').close();$('restart-notice').hidden=false;
   wizardStep=1;render();goToStep(1,{replace:true});
@@ -474,3 +481,36 @@ async function openRecipePreview(recipe){
 }
 $('close-recipe-preview').addEventListener('click',()=>$('recipe-preview').close());
 $('recipe-preview').addEventListener('close',()=>previewRequest++);
+
+
+function renderSharedStatus(){
+  const progress=state.planProgress||{stage:'planning'},count=state.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)).length;
+  $('plan-progress').value=progress.stage;
+  const labels={planning:'Vælger retter og tilpasser indkøb',ready:'Klar til indkøb',sent:'Indkøbslisten er sendt',partial:'Indkøbslisten er delvist sendt'};
+  const changed=progress.fingerprint&&progress.fingerprint!==shoppingFingerprint();
+  $('shared-plan-status').textContent=sharedController?.isConnected()?
+    (count?count+' retter valgt':'Ingen retter valgt endnu')+' · '+(labels[progress.stage]||labels.planning)+(changed?' · Indkøbsbehov ændret siden overførslen':''):'';
+}
+$('plan-progress').addEventListener('change',()=>{
+  const stage=$('plan-progress').value;
+  state.planProgress={stage,sentAt:['sent','partial'].includes(stage)?new Date().toISOString():null,fingerprint:['sent','partial'].includes(stage)?shoppingFingerprint():null};save();renderSharedStatus();
+});
+function backupLocalPlan(){localStorage.setItem('madplan-before-cloud',JSON.stringify({state,step:wizardStep}));}
+$('restore-local-plan').addEventListener('click',()=>{
+  let backup;try{backup=JSON.parse(localStorage.getItem('madplan-before-cloud')||'null');}catch{}
+  if(!backup?.state){$('cloud-message').textContent='Der er ingen lokal sikkerhedskopi endnu.';return;}
+  if(sharedController?.isConnected()){$('cloud-message').textContent='Vælg Fortsæt lokalt, før du gendanner sikkerhedskopien.';return;}
+  if(!confirm('Gendan den tidligere lokale plan? Den aktuelle lokale plan erstattes.'))return;
+  state={...defaults,...backup.state};save();invalidatePreview();render();goToStep(canVisitStep(backup.step,state)?backup.step:1,{replace:true});renderSharedStatus();
+});
+sharedController=connectCloud({
+  incoming:incomingPlanCode,
+  getDocument:step=>sharedDocument(state,canVisitStep(step,state)?step:1),
+  currentStep:()=>wizardStep,
+  backup:backupLocalPlan,
+  applyDocument:document=>{state=applySharedDocument(state,document);localStorage.setItem(KEY,JSON.stringify(state));invalidatePreview();render();renderSharedStatus();},
+  navigate:step=>goToStep(canVisitStep(step,state)?step:1,{replace:true,focus:false}),
+  canApply:()=>!wizardBusy()&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName),
+  renderStatus:renderSharedStatus
+});
+renderSharedStatus();

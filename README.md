@@ -51,3 +51,13 @@ Trin 4 viser den aktuelle plans valgte retter i rækkefølge. Op/Ned flytter en 
 Trin 1: Klik på en ret eller miniature for at se billede og ingredienser i en dialog. Hele fremgangsmåden åbnes hos kilden i en ny fane. Sammensatte retter viser alle dele. Billeder hentes fra opskriftens strukturerede image-felt (eller og:image) og begrænses til HTTPS på sundpaabudget.dk. Manglende billeder udelades. Metadata hentes først nær synlige retter og genbruges under samme besøg.
 
 Samlet opskriftstid vises på trin 1 og i forhåndsvisningen. totalTime foretrækkes; ellers summeres oplyst prepTime og cookTime. Opskriftskortets tidsfelter bruges som fallback. Manglende tider markeres eksplicit, ikke gættet. Ved sammensatte retter vises summen, med besked om at dele kan laves samtidig.
+
+## Fælles madplan uden konto
+
+“Gem og del madplan” opretter en privat JSON-plan i Vercel Blob. En kryptografisk tilfældig kode på 128 bit giver læse- og skriveadgang. Delingslinks bruger fragmentet `#plan=...`, så koden ikke sendes med referrer eller side-URL til serveren. Serveren bruger SHA-256 af koden som filnavn; ingen liste over planer udstilles. Browseren husker koden lokalt. Ingen eTilbudsavis-sessioner, loginoplysninger eller ikke-valgte gemte opskrifter deles.
+
+`BLOB_READ_WRITE_TOKEN` tilknyttes gennem projektets private Blob-store (Frankfurt). SDK'et kan også bruge BLOB_STORE_ID og VERCEL_OIDC_TOKEN. Alle API-kald er same-origin POST med no-store. Dokumenter valideres og begrænses til 250 kB. Opdateringer bruger ETag/ifMatch til atomisk versionskontrol og private useCache:false-læsninger. Konflikter kræver eksplicit valg af lokal eller fælles version. Ingen automatisk overskrivning ved en konflikt.
+
+Ændringer gemmes efter ca. 1,5 sekund. Åbne, synlige sider henter fælles ændringer hvert 15. sekund og ved tilbagevenden til siden. Input og åbne dialoger udsætter automatisk anvendelse; Opdatér fra skyen kan bruges manuelt. Ændringer ved manglende net gemmes lokalt og genforsøges. Gemmestatus og konflikter er synlige. Seneste aktivt valgte trin deles, men flytter kun en anden bruger ved genåbning af planen. Status for indkøbslisten deles separat og ændres ikke ved navigation. eTilbudsavis-overførsel registrerer sendt/delvist sendt; Påmindelser/manuel indsætning markeres manuelt efter kontrol. Ændret indkøbsbehov siden overførsel markeres.
+
+Åbning af en delt plan bevarer en lokal sikkerhedskopi. Fortsæt lokalt afkobler denne enhed; cloudplanen bliver liggende. Sikkerhedskopien kan gendannes efter afkobling. “Start forfra” i en fælles plan nulstiller den fælles plans valg og status, når opdateringen er gemt.

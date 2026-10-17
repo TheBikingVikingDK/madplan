@@ -1,5 +1,5 @@
 {
-  "functions": {"api/etilbudsavis.js":{"maxDuration":60}},
+  "functions": {"api/etilbudsavis.js":{"maxDuration":60},"api/plans.js":{"maxDuration":30}},
   "headers": [
     {"source":"/api/(.*)","headers":[{"key":"Cache-Control","value":"private, no-store"}]},
     {"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]},
