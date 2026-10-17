@@ -1,4 +1,5 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
+import {peopleCount,recipeCount,baseServings,recipeMultiplier} from './lib/portions.js';
 import {connectCloud} from './lib/cloud.js';
 import {sharedDocument,applySharedDocument} from './lib/shared-plan.js';
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
@@ -8,12 +9,12 @@ import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
 import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
 
-const recipeRequests=new Map();
+const recipeRequests=new Map(),portionRequests=new Set();
 let previewRequest=0;
 const incomingPlanCode=new URLSearchParams(location.hash.slice(1)).get('plan');
 let sharedController=null;
 const KEY='madplan-mvp-v1';
-const defaults={recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
+const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
 const save=()=>{localStorage.setItem(KEY,JSON.stringify(state));sharedController?.changed();};
@@ -35,6 +36,7 @@ history.replaceState(null,'','#trin-'+wizardStep);
 function aggregate(){return selectedIngredients(state)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function render(){
+  $('people').value=peopleCount(state);renderPortionChoices();ensurePortionData();
   const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;
   $('selected-count').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
   $('saved-recipes-summary').textContent='Gemte retter ('+state.recipes.length+')';
@@ -65,8 +67,8 @@ function render(){
   });
   renderMergeIngredients(entries);renderHiddenIngredients();renderWeekDishes();renderReminders();renderMealPlan();renderWizard();
 }
-$('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;renderWizard();$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false;renderWizard()}});
-$('save').addEventListener('click',()=>{const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines});state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
+$('import').addEventListener('click',async()=>{const url=$('url').value.trim();if(!url){$('message').textContent='Indsæt et opskriftslink først.';return}const btn=$('import');btn.disabled=true;renderWizard();$('message').textContent='Henter opskrift...';try{const response=await fetch('/api/import?url='+encodeURIComponent(url));const data=await response.json();if(!response.ok)throw Error(data.error||'Import mislykkedes');$('title').value=data.title;$('manual-servings').value=data.servings||4;$('lines').value=data.lines.join('\n');$('message').textContent='Opskriften er hentet. Gennemgå ingredienserne og tryk Gem opskrift.'}catch(e){$('message').textContent=e.message}finally{btn.disabled=false;renderWizard()}});
+$('save').addEventListener('click',()=>{if(!$('manual-servings').checkValidity()){$('manual-servings').reportValidity();return;}const title=$('title').value.trim(),lines=$('lines').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!title||!lines.length){$('message').textContent='Udfyld navn og mindst én ingrediens.';return}const url=$('url').value.trim();if(url&&!/^https?:\/\//i.test(url)){$('message').textContent='Link skal begynde med https://';return}const id=crypto.randomUUID();state.recipes.push({id,title,url,lines,servings:Number($('manual-servings').value)||4,portionsChecked:true});state.selected.push(id);save();invalidatePreview();$('title').value=$('url').value=$('lines').value='';$('message').textContent='Opskrift gemt på denne enhed.';render()});
 $('copy').addEventListener('click',async()=>{const lines=neededItems().map(p=>p.name+' – '+p.note);if(!lines.length){alert('Ingen varer at kopiere');return;}try{await navigator.clipboard.writeText(lines.join('\n'));alert('Indkøbsbehov kopieret');}catch{prompt('Kopiér listen:',lines.join('\n'));}});
 $('reset').addEventListener('click',()=>{state.adjustments={};save();invalidatePreview();render()});render();
 
@@ -163,7 +165,7 @@ async function chooseDish(dish){
         const data=await fetchRecipe(url);parts.push(data);image ||= data.image;lines.push(...data.lines);
       }
       lines.push(...dish.extraLines);
-      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],image,totalMinutes:totalRecipeMinutes(parts),lines,sourceKey:dishKey(dish)};
+      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],servings:parts[0]?.servings||null,parts:parts.map(({title,url,servings,lines})=>({title,url,servings,lines})),extraLines:[...dish.extraLines],portionsChecked:true,image,totalMinutes:totalRecipeMinutes(parts),lines,sourceKey:dishKey(dish)};
       state.recipes.push(recipe);
     }
     if(!state.selected.includes(recipe.id))state.selected.push(recipe.id);
@@ -360,7 +362,7 @@ $('restart-plan').addEventListener('click',()=>{if(!wizardBusy())$('restart-dial
 $('cancel-restart').addEventListener('click',()=>$('restart-dialog').close());
 $('confirm-restart').addEventListener('click',()=>{
   if(wizardBusy())return;
-  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,step:wizardStep,
+  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,recipeCounts:{...state.recipeCounts},step:wizardStep,
     draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
   state=startNewPlan(state);state.planProgress={stage:'planning',sentAt:null,fingerprint:null};mergeSelection.clear();save();invalidatePreview();
   $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
@@ -371,7 +373,7 @@ $('confirm-restart').addEventListener('click',()=>{
 $('undo-restart').addEventListener('click',()=>{
   if(!restartSnapshot||wizardBusy())return;
   const snapshot=restartSnapshot;restartSnapshot=null;
-  state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded,planProgress:snapshot.planProgress};
+  state={...state,selected:snapshot.selected.filter(id=>state.recipes.some(recipe=>recipe.id===id)),adjustments:snapshot.adjustments,excluded:snapshot.excluded,planProgress:snapshot.planProgress,recipeCounts:snapshot.recipeCounts||{}};
   for(const [key,value] of Object.entries(snapshot.draft))$(key).value=value;
   migratePreferences();save();invalidatePreview();$('restart-notice').hidden=true;render();
   goToStep(canVisitStep(snapshot.step,state)?snapshot.step:1,{replace:true});
@@ -386,7 +388,7 @@ function renderMealPlan(){
   recipes.forEach((recipe,index)=>{
     const card=el('li',undefined,'plan-card'),heading=el('div',undefined,'row');
     const title=el('h3',recipe.title,'grow');title.id='plan-recipe-'+recipe.id;title.tabIndex=-1;
-    heading.append(el('span',String(index+1),'plan-number'),title);card.append(heading);
+    heading.append(el('span',String(index+1),'plan-number'),title);card.append(heading);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
     const actions=el('div',undefined,'actions'),links=recipeLinks(recipe);
     links.forEach((url,i)=>{
       const link=el('a',links.length===1?'Åbn opskrift':'Åbn opskrift '+(i+1),'button-link');
@@ -464,7 +466,7 @@ async function openRecipePreview(recipe){
     for(const part of parts){
       if(part.image){const image=el('img',undefined,'recipe-preview-image');image.src=part.image;image.alt=part.title||recipe.title;image.addEventListener('error',()=>image.remove());content.append(image);}
       if(parts.length>1){content.append(el('h3',part.title),el('p',recipeTimeLabel(part.totalMinutes),'muted'));}
-      if(part.lines?.length){content.append(el('h3','Ingredienser'));const list=el('ul');part.lines.forEach(line=>list.append(el('li',line)));content.append(list);}
+      if(part.lines?.length){content.append(el('p',part.servings?'Original opskrift: '+part.servings+' personer':'Antal personer er ikke oplyst i kilden.','muted'),el('h3','Ingredienser i original opskrift'));const list=el('ul');part.lines.forEach(line=>list.append(el('li',line)));content.append(list);}
     }
     if(recipe.extraLines?.length){content.append(el('h3','Tilbehør / ekstra'));const list=el('ul');recipe.extraLines.forEach(line=>list.append(el('li',line)));content.append(list);}
   };
@@ -514,3 +516,61 @@ sharedController=connectCloud({
   renderStatus:renderSharedStatus
 });
 renderSharedStatus();
+
+
+$('people').addEventListener('change',()=>{
+  if(!$('people').checkValidity()){$('people').reportValidity();return;}
+  state.people=Number($('people').value);save();invalidatePreview();render();
+});
+function renderPortionChoices(){
+  const root=$('portion-choices');root.replaceChildren();const recipes=planRecipes(state);
+  $('portion-panel').hidden=!recipes.length;
+  recipes.forEach(recipe=>{
+    const row=el('div',undefined,'portion-card'),heading=el('div',undefined,'row'),info=el('div',undefined,'grow');
+    info.append(recipePreviewButton(recipe));
+    const count=recipeCount(state,recipe.id),people=peopleCount(state);
+    info.append(el('div',people+' personer × '+count+' '+(count===1?'gang':'gange')+' = '+people*count+' portioner i alt','muted'));
+    const controls=el('div',undefined,'portion-controls');controls.setAttribute('aria-label','Antal gange: '+recipe.title);
+    for(const direction of [-1,1]){
+      const button=el('button',direction===-1?'−':'+','secondary');button.type='button';button.id='portion-'+(direction===-1?'minus-':'plus-')+recipe.id;
+      button.setAttribute('aria-label',(direction===-1?'Færre':'Flere')+' gange: '+recipe.title);button.disabled=direction===-1?count<=1:count>=30;
+      button.addEventListener('click',()=>{
+        const next=Math.max(1,Math.min(30,recipeCount(state,recipe.id)+direction));state.recipeCounts={...state.recipeCounts,[recipe.id]:next};save();invalidatePreview();render();
+        document.getElementById(button.id)?.focus({preventScroll:true});
+      });
+      if(direction===1){const value=el('span',count+'×');value.setAttribute('aria-label',count+' gange');controls.append(value);}
+      controls.append(button);
+    }
+    heading.append(info,controls);row.append(heading);
+    const parts=recipe.parts?.length?recipe.parts:[recipe];
+    row.append(el('div',parts.length===1?'Original: '+baseServings(parts[0])+' personer · ingredienser × '+format(recipeMultiplier(state,recipe,parts[0])):'Tilbehør og hovedret omregnes hver for sig efter deres portionsantal.','muted'));
+    if(parts.some(part=>!part.servings))row.append(el('p','Portionsantal mangler'+(portionRequests.has(recipe.id)?' eller hentes':'')+'. Der regnes foreløbigt med 4 personer pr. opskrift; ret det nedenfor, hvis det ikke passer.','muted'));
+    const details=el('details');details.append(el('summary','Ret originalens portionsantal'));
+    parts.forEach((part,index)=>{
+      const label=el('label',parts.length>1?part.title:'Opskriften er oprindeligt til'),input=el('input');input.type='number';input.min='0.5';input.max='1000';input.step='0.5';input.value=baseServings(part);
+      input.setAttribute('aria-label','Originalt antal personer: '+(part.title||recipe.title));
+      input.addEventListener('change',()=>{
+        if(!input.checkValidity()){input.reportValidity();return;}
+        part.servings=Number(input.value);recipe.portionsChecked=true;if(index===0)recipe.servings=part.servings;save();invalidatePreview();render();
+      });label.append(input,document.createTextNode(' personer'));details.append(label);
+    });row.append(details);root.append(row);
+  });
+}
+function ensurePortionData(){
+  for(const recipe of planRecipes(state)){
+    if(recipe.portionsChecked||portionRequests.has(recipe.id))continue;
+    const urls=recipeLinks(recipe).filter(url=>new URL(url).hostname==='sundpaabudget.dk');
+    if(!urls.length)continue;
+    portionRequests.add(recipe.id);
+    Promise.all(urls.map(fetchRecipe)).then(parts=>{
+      if(!state.recipes.includes(recipe)||recipe.portionsChecked)return;
+      recipe.servings=parts[0]?.servings||null;recipe.portionsChecked=true;
+      const originalLines=parts.flatMap(part=>part.lines);
+      let extras=[];try{extras=JSON.parse(recipe.sourceKey||'null')?.[1]||[];}catch{}
+      if(parts.length>1&&JSON.stringify([...originalLines,...extras])===JSON.stringify(recipe.lines)){
+        recipe.parts=parts.map(({title,url,servings,lines})=>({title,url,servings,lines}));recipe.extraLines=extras;
+      }
+      save();invalidatePreview();
+    }).catch(()=>{recipe.portionsChecked=true;}).finally(()=>{portionRequests.delete(recipe.id);render();});
+  }
+}

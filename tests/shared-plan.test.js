@@ -55,3 +55,10 @@ test('Two simultaneous writes cannot both succeed with the same revision',async(
   const rejected=results.find(result=>result.status==='rejected');assert.equal(rejected.reason.status,409);
   const winner=results.find(result=>result.status==='fulfilled');assert.equal((await store.read(created.code)).document.step,winner.value.document.step);
 });
+
+test('Updates from an older open client preserve shared people and meal counts',async()=>{
+  const store=createPlanStore(fakeStorage()),s={...state(),people:6,recipeCounts:{a:2}},created=await store.create(sharedDocument(s,1));
+  const old=structuredClone(created.document);delete old.state.people;delete old.state.recipeCounts;old.step=2;
+  const updated=await store.update(created.code,created.revision,old);
+  assert.equal(updated.document.state.people,6);assert.equal(updated.document.state.recipeCounts.a,2);
+});

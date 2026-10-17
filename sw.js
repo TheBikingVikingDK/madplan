@@ -1,5 +1,5 @@
-const CACHE='madplan-shell-v15';
-const SHELL=['/','/index.html','/app.js','/lib/ingredients.js','/lib/shopping.js','/lib/reminders.js','/lib/flow.js','/lib/plan.js','/lib/cloud.js','/lib/shared-plan.js','/lib/recipe-time.js','/manifest.webmanifest','/apple-touch-icon.png','/icons/icon-192.png','/icons/icon-512.png'];
+const CACHE='madplan-shell-v16';
+const SHELL=['/','/index.html','/app.js','/lib/ingredients.js','/lib/shopping.js','/lib/reminders.js','/lib/flow.js','/lib/plan.js','/lib/portions.js','/lib/cloud.js','/lib/shared-plan.js','/lib/recipe-time.js','/manifest.webmanifest','/apple-touch-icon.png','/icons/icon-192.png','/icons/icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('madplan-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{

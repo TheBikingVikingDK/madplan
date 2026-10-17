@@ -63,3 +63,9 @@ Samlet opskriftstid vises på trin 1 og i forhåndsvisningen. totalTime foretræ
 Åbning af en delt plan bevarer en lokal sikkerhedskopi. Fortsæt lokalt afkobler denne enhed; cloudplanen bliver liggende. Sikkerhedskopien kan gendannes efter afkobling. “Start forfra” i en fælles plan nulstiller den fælles plans valg og status, når opdateringen er gemt.
 
 Versionskontrol: En separat tilfældig dokumentrevision bevares uændret mellem skrivning og læsning. Transportens HTTP-ETag normaliseres før Blob ifMatch. Tests dækker også to samtidige skrivninger og forskelle mellem API- og HTTP-formater for ETags.
+
+## Personer og antal gange
+
+Trin 1 har antal personer (standard 4) og +/- for 1–30 gange pr. valgt ret. Valgene deles i skyen. Indkøbsbehovet beregnes som original ingrediensmængde × personer i planen / originalt portionsantal × antal gange. Skaleringen sker før enhedsomregning, sammenlægning og fradrag for beholdning, uden at ændre originalopskriften. eTilbudsavis, kopiering og Påmindelser bruger samme beregnede behov.
+
+Kildens recipeYield eller det synlige opskriftskorts portionsantal hentes ved import og for tidligere gemte retter. Manglende antal bruger en tydeligt markeret antagelse om 4 personer, som kan rettes ved retten. Sammensatte opskrifter bevarer hver dels portionsantal; ekstra ingredienser skaleres med hovedretten. Originalens ingredienser og portionsantal vises i forhåndsvisningen. Antal personer bevares ved Start forfra; antal gange nulstilles. Fortryd gendanner de tidligere antal. Gamle delte dokumenter uden disse felter åbnes med 4 personer og 1 gang.
