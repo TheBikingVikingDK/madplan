@@ -324,7 +324,6 @@ function renderWizard(){
   document.querySelectorAll('[data-step]').forEach(panel=>panel.hidden=Number(panel.dataset.step)!==wizardStep||(panel.id==='install'&&installed));
   const count=state.recipes.filter(recipe=>state.selected.includes(recipe.id)).length;
   $('wizard-progress').textContent='Trin '+wizardStep+' af '+FLOW_STEPS.length+' · '+FLOW_STEPS[wizardStep-1];
-  $('wizard-selection').textContent=count+' '+(count===1?'ret valgt':'retter valgt');
   const blocked=wizardBusy();
   document.querySelectorAll('[data-step-target]').forEach(button=>{
     const target=Number(button.dataset.stepTarget);

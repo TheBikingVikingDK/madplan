@@ -73,3 +73,5 @@ Kildens recipeYield eller det synlige opskriftskorts portionsantal hentes ved im
 Aktuelt forløb: 1 Vælg retter, 2 Tilpas mængder, 3 Tilpas indkøb, 4 Send indkøbslisten, 5 Ugens madplan. Personantal på trin 1 kan ændres med separate +/− knapper. Mængder pr. valgt ret findes kun på trin 2. Trinpositioner i tidligere lokale og delte planer flyttes til samme indhold i det nye forløb. `flowVersion:5` forhindrer gentagen migrering.
 
 Deling vises som en tydelig grøn boks øverst med knapperne Gem og del / Del fælles madplan samt Åbn med kode. Knapperne åbner en native modal dialog med fokusstyring, Luk og Escape. Delingskode, link, oprettelse, status og eksisterende delingsfunktioner findes i dialogen. Gemmestatus og fejl er også synlige i boksen, når dialogen er lukket.
+
+Delingsboksen i sidetoppen er erstattet af en 46 px ikonknap øverst til højre ved trinnavigationen. Knappen bruger et delingsikon med tilgængeligt navn og bevarer den eksisterende popup. Valgt-antal er fjernet fra toplinjen; fælles status findes i popup’en. En lille prik markerer gemt/afventende/konflikt uden at fylde på siden.
