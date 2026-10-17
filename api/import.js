@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import {recipeImage} from '../lib/recipe-image.js';
+import {extractRecipeMinutes} from '../lib/recipe-time-source.js';
 const DOMAIN='sundpaabudget.dk';
 export default async function handler(req,res){
   if(req.method!=='GET')return res.status(405).json({error:'Kun GET understøttes'});
@@ -15,7 +16,7 @@ export default async function handler(req,res){
     $('script[type="application/ld+json"]').each((_,node)=>{try{const value=JSON.parse($(node).html());const walk=x=>{if(!x||typeof x!=='object')return;if(Array.isArray(x)){x.forEach(walk);return}const type=x['@type'];if((Array.isArray(type)?type:[type]).includes('Recipe'))nodes.push(x);Object.values(x).forEach(walk)};walk(value)}catch{}});
     const recipe=nodes.find(x=>Array.isArray(x.recipeIngredient)&&x.recipeIngredient.length);
     if(!recipe)return res.status(422).json({error:'Ingen strukturerede opskriftsingredienser fundet på siden'});
-    return res.status(200).json({title:String(recipe.name||$('h1').first().text()).trim(),url:url.toString(),image:recipeImage(recipe.image,url.toString())||recipeImage($('meta[property="og:image"]').attr('content'),url.toString()),lines:recipe.recipeIngredient.map(x=>String(x).trim()).filter(Boolean)});
+    return res.status(200).json({title:String(recipe.name||$('h1').first().text()).trim(),url:url.toString(),totalMinutes:extractRecipeMinutes(recipe,$),image:recipeImage(recipe.image,url.toString())||recipeImage($('meta[property="og:image"]').attr('content'),url.toString()),lines:recipe.recipeIngredient.map(x=>String(x).trim()).filter(Boolean)});
   }catch{return res.status(502).json({error:'Kunne ikke hente opskriften. Prøv igen senere'})}
 }
 

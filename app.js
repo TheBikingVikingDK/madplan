@@ -1,6 +1,7 @@
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
+import {totalRecipeMinutes,recipeTimeLabel} from './lib/recipe-time.js';
 import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
 import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep} from './lib/flow.js';
 import {REMINDERS_SHORTCUT_NAME,reminderTitles,remindersShortcutUrl} from './lib/reminders.js';
@@ -151,12 +152,12 @@ async function chooseDish(dish){
   importingDish=dishKey(dish);renderWeekDishes();renderWizard();$('week-message').textContent='Henter ingredienser til '+dish.title+'…';
   try{
     if(!recipe){
-      const lines=[];let image=null;
+      const lines=[],parts=[];let image=null;
       for(const url of dish.urls){
-        const data=await fetchRecipe(url);image ||= data.image;lines.push(...data.lines);
+        const data=await fetchRecipe(url);parts.push(data);image ||= data.image;lines.push(...data.lines);
       }
       lines.push(...dish.extraLines);
-      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],image,lines,sourceKey:dishKey(dish)};
+      recipe={id:crypto.randomUUID(),title:dish.title,url:dish.urls[0],urls:[...dish.urls],image,totalMinutes:totalRecipeMinutes(parts),lines,sourceKey:dishKey(dish)};
       state.recipes.push(recipe);
     }
     if(!state.selected.includes(recipe.id))state.selected.push(recipe.id);
@@ -421,19 +422,23 @@ function recipePreviewButton(recipe){
   button.addEventListener('click',()=>openRecipePreview(recipe));return button;
 }
 function addRecipeThumbnail(root,recipe){
-  const url=previewLinks(recipe).find(url=>new URL(url).hostname==='sundpaabudget.dk');
-  if(!url&&!recipe.image)return;
+  const urls=previewLinks(recipe).filter(url=>new URL(url).hostname==='sundpaabudget.dk');
+  const time=el('div',recipe.totalMinutes?recipeTimeLabel(recipe.totalMinutes):urls.length?'Henter tid…':'Tid ikke oplyst','muted recipe-time');root.append(time);
   const button=el('button',undefined,'recipe-thumbnail');button.type='button';button.hidden=true;
   button.setAttribute('aria-label','Se billede og opskrift: '+recipe.title);
   const image=el('img');image.alt='';image.width=88;image.height=70;
   image.addEventListener('error',()=>button.hidden=true);
   image.addEventListener('load',()=>button.hidden=false);
   button.append(image);button.addEventListener('click',()=>openRecipePreview(recipe));root.prepend(button);
-  if(recipe.image){image.src=recipe.image;return;}
-  // Load metadata only when this row is near the viewport (including saved recipes).
+  if(recipe.image)image.src=recipe.image;
+  if(!urls.length)return;
   const observer=new IntersectionObserver(entries=>{
     if(!entries.some(entry=>entry.isIntersecting))return;
-    observer.disconnect();fetchRecipe(url).then(data=>{if(data.image)image.src=data.image;}).catch(()=>{});
+    observer.disconnect();
+    Promise.all(urls.map(fetchRecipe)).then(parts=>{
+      const minutes=totalRecipeMinutes(parts);time.textContent=recipeTimeLabel(minutes)+(minutes&&parts.length>1?' (flere opskrifter)':'');
+      if(!recipe.image){const first=parts.find(part=>part.image);if(first)image.src=first.image;}
+    }).catch(()=>{time.textContent=recipe.totalMinutes?recipeTimeLabel(recipe.totalMinutes):'Tid kunne ikke hentes';});
   },{rootMargin:'150px'});
   observer.observe(root);
 }
@@ -447,9 +452,11 @@ async function openRecipePreview(recipe){
   if(!$('recipe-preview').open)$('recipe-preview').showModal();
   const show=(parts)=>{
     content.replaceChildren();
+    content.append(el('p',recipeTimeLabel(totalRecipeMinutes(parts)),'notice recipe-time'));
+    if(parts.length>1)content.append(el('p','Tiden er summen af opskrifternes tider. Nogle dele kan muligvis laves samtidig.','muted'));
     for(const part of parts){
       if(part.image){const image=el('img',undefined,'recipe-preview-image');image.src=part.image;image.alt=part.title||recipe.title;image.addEventListener('error',()=>image.remove());content.append(image);}
-      if(parts.length>1)content.append(el('h3',part.title));
+      if(parts.length>1){content.append(el('h3',part.title),el('p',recipeTimeLabel(part.totalMinutes),'muted'));}
       if(part.lines?.length){content.append(el('h3','Ingredienser'));const list=el('ul');part.lines.forEach(line=>list.append(el('li',line)));content.append(list);}
     }
     if(recipe.extraLines?.length){content.append(el('h3','Tilbehør / ekstra'));const list=el('ul');recipe.extraLines.forEach(line=>list.append(el('li',line)));content.append(list);}
