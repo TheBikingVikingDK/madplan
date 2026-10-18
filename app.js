@@ -113,7 +113,7 @@ $('preview-button').addEventListener('click',()=>busy($('preview-button'),async(
   if(revision!==shoppingRevision||listId!==$('shopping-list').value){$('connection-message').textContent='Indkøbsbehovet er ændret. Gennemgå varerne igen.';return;}
   previewItems=data.items;
   $('preview-items').replaceChildren();
-  previewItems.forEach(item=>{const row=el('div',undefined,'preview-item');const label=el('label'),cb=el('input');cb.type='checkbox';cb.checked=true;item.selected=cb.checked;cb.addEventListener('change',()=>item.selected=cb.checked);label.append(cb,document.createTextNode(' '+item.name+' — '+item.note));row.append(label);if(item.duplicate)row.append(el('div','Mængden lægges til den eksisterende vare. Ny samlet note: '+item.nextNote,'muted'));$('preview-items').append(row)});
+  previewItems.forEach(item=>{const row=el('div',undefined,'preview-item');const label=el('label'),cb=el('input');cb.type='checkbox';cb.checked=true;item.selected=cb.checked;cb.addEventListener('change',()=>item.selected=cb.checked);label.append(cb,document.createTextNode(' '+item.name+' — '+item.note));row.append(label);if(item.duplicate)row.append(el('div','Mængden lægges til den eksisterende vare. Nyt antal: '+item.nextCount+' ×'+(item.nextNote?' — '+item.nextNote:''),'muted'));$('preview-items').append(row)});
   $('existing-items').replaceChildren();data.existing.forEach(item=>$('existing-items').append(el('p',displayName(item.name)+(item.note?' — '+item.note:''))));
   if(!data.existing.length)$('existing-items').append(el('p','Listen har ingen aktive varer.','muted'));
   $('preview').hidden=false;$('connection-message').textContent='Gennemgå varerne og tryk Tilføj valgte varer.';

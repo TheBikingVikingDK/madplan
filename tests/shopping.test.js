@@ -72,7 +72,7 @@ test('Transfer updates saved aliases and preserves upstream metadata; checked-of
 });
 test('An existing piece counter increases; unknown weight is preserved rather than invented',()=>{
   const p=classify([{name:'Løg',note:'2 stk'},{name:'Ris',note:'200 g'}],[{name:'løg',count:3,ticked:false},{name:'ris',count:2,ticked:false}]);
-  assert.equal(p[0].nextCount,5);assert.equal(p[0].nextNote,'5 stk');
+  assert.equal(p[0].nextCount,5);assert.equal(p[0].nextNote,'');
   assert.equal(p[1].nextCount,2);assert.match(p[1].nextNote,/200 g/);assert.match(p[1].nextNote,/mængde ukendt/);
 });
 test('Ambiguous update failure stops without retrying or adding later items',async()=>{
@@ -82,4 +82,26 @@ test('Ambiguous update failure stops without retrying or adding later items',asy
   };
   const result=await transfer(7,[{name:'Ris',note:'400 g'},{name:'Pasta',note:'200 g'}],'token',fetcher);
   assert.equal(calls,1);assert.equal(result.uncertain,'Ris');assert.deepEqual(result.updated,[]);assert.deepEqual(result.added,[]);
+});
+test('Exact pieces use only the counter, including repeated transfers; informative notes remain',async()=>{
+  let existing=[];const writes=[];
+  const fetcher=async(url,options)=>{
+    if(url.endsWith('/'))return Response.json([{value:existing}]);
+    const item=JSON.parse(options.body).item;writes.push(item);
+    existing=[{...item,shortDescription:item.shortDescription??item.comment,ticked:false}];
+    return Response.json({ok:true});
+  };
+  const items=[{name:'Peberfrugt',note:'5 stk'}];
+  assert.equal(classify(items,[])[0].nextNote,'');
+  assert.equal(classify(items,[])[0].nextCount,5);
+  await transfer(7,items,'token',fetcher);
+  assert.equal(writes[0].count,5);assert.equal(writes[0].comment,'');
+  const preview=classify([{name:'Peberfrugt',note:'2 stk'}],existing)[0];
+  assert.equal(preview.nextCount,7);assert.equal(preview.nextNote,'');
+  await transfer(7,[{name:'Peberfrugt',note:'2 stk'}],'token',fetcher);
+  assert.equal(writes[1].count,7);assert.equal(writes[1].shortDescription,'');
+  const notes=['400 g','30 ml','1 dåse','ca. 2 stk','2 stk + Økologisk','200 g + 2 stk'];
+  for(const note of notes)assert.equal(classify([{name:'Test',note}],[])[0].nextNote,note);
+  const custom=classify([{name:'Løg',note:'2 stk'}],[{name:'Løg',count:3,shortDescription:'Økologisk',ticked:false}])[0];
+  assert.match(custom.nextNote,/Økologisk/);
 });

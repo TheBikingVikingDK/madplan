@@ -43,7 +43,7 @@ test('Transfer rereads the list, increases existing amounts, keeps notes and sto
   const result=await transfer(123,[{name:'løg',note:'2 stk'},{name:'Mælk',note:'500 ml'},{name:'mælk',note:'100 ml'},{name:'Ris',note:'200 g'},{name:'Pasta',note:'500 g'}],'token',fetcher);
   assert.deepEqual(result.added,['Mælk']);assert.deepEqual(result.updated,['Løg']);assert.deepEqual(result.skipped,['mælk']);
   assert.equal(result.uncertain,'Ris');assert.equal(writes.length,3);
-  assert.equal(writes[0].item.count,5);assert.equal(writes[0].item.shortDescription,'5 stk');
+  assert.equal(writes[0].item.count,5);assert.equal(writes[0].item.shortDescription,'');
   assert.equal(writes[1].item.count,1);assert.equal(writes[1].item.comment,'500 ml');
   assert.equal(writes[0].shoppingListId,123);
 });
