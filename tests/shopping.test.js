@@ -100,8 +100,30 @@ test('Exact pieces use only the counter, including repeated transfers; informati
   assert.equal(preview.nextCount,7);assert.equal(preview.nextNote,'');
   await transfer(7,[{name:'Peberfrugt',note:'2 stk'}],'token',fetcher);
   assert.equal(writes[1].count,7);assert.equal(writes[1].shortDescription,'');
-  const notes=['400 g','30 ml','1 dåse','ca. 2 stk','2 stk + Økologisk','200 g + 2 stk'];
+  const notes=['400 g','30 ml','2 fed','1 bundt','ca. 2 stk','2 stk + Økologisk','200 g + 2 stk'];
   for(const note of notes)assert.equal(classify([{name:'Test',note}],[])[0].nextNote,note);
   const custom=classify([{name:'Løg',note:'2 stk'}],[{name:'Løg',count:3,shortDescription:'Økologisk',ticked:false}])[0];
   assert.match(custom.nextNote,/Økologisk/);
+});
+test('Ordinary cans, packs and bags use the counter without redundant notes on add and update',async()=>{
+  for(const unit of ['dåse','dåser','pk','pk.','pakke','pakker','pose','poser']){
+    const items=[{name:'Testvare',note:'2 '+unit}];
+    const added=classify(items,[])[0];assert.equal(added.nextCount,2);assert.equal(added.nextNote,'');
+    const existing=[{clientId:'saved',name:'Testvare',count:3,shortDescription:'',ticked:false}];
+    const updated=classify(items,existing)[0];assert.equal(updated.nextCount,5);assert.equal(updated.nextNote,'');
+    const writes=[];const fetcher=async(url,options)=>{
+      if(url.endsWith('/'))return Response.json([{value:existing}]);
+      writes.push(JSON.parse(options.body).item);return Response.json({ok:true});
+    };
+    await transfer(7,items,'token',fetcher);
+    assert.equal(writes[0].count,5);assert.equal(writes[0].shortDescription,'');
+    existing.length=0;
+    await transfer(7,items,'token',fetcher);
+    assert.equal(writes[1].count,2);assert.equal(writes[1].comment,'');
+  }
+  const old=classify([{name:'Bønner',note:'2 dåser'}],[{name:'Bønner',count:1,shortDescription:'1 dåse',ticked:false}])[0];
+  assert.equal(old.nextCount,3);assert.equal(old.nextNote,'');
+  for(const note of ['400 g','30 ml','2 fed','1 bundt','ca. 2 pakker','1 pakke + 200 g','1 pose + Økologisk']){
+    assert.equal(classify([{name:'Testvare',note}],[])[0].nextNote,note);
+  }
 });
