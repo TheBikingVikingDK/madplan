@@ -68,3 +68,12 @@ test('Legacy cloud plans keep their logical page when the quantity step is inser
   assert.equal(validateSharedDocument(doc).step,5);
   const current=sharedDocument(state(),5);assert.equal(validateSharedDocument(current).step,5);
 });
+test('Ingredient display names and learned merges are shared and validated, with legacy documents supported',()=>{
+  const local=state();local.ingredientLabels={ris:'Jasminris'};local.nameAliases={rice:'ris'};
+  const document=validateSharedDocument(sharedDocument(local,3));
+  const remote=applySharedDocument(state(),document);
+  assert.deepEqual(remote.ingredientLabels,{ris:'Jasminris'});assert.deepEqual(remote.nameAliases,{rice:'ris'});
+  delete document.state.ingredientLabels;assert.deepEqual(validateSharedDocument(document).state.ingredientLabels,{});
+  document.state.ingredientLabels={ris:'x'.repeat(151)};assert.throws(()=>validateSharedDocument(document));
+  document.state.ingredientLabels=JSON.parse('{"__proto__":"bad"}');assert.throws(()=>validateSharedDocument(document));
+});

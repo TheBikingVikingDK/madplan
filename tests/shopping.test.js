@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {shoppingItems,selectedIngredients} from '../lib/shopping.js';
+import {shoppingItems,selectedIngredients,ingredientLabel,setIngredientLabel} from '../lib/shopping.js';
 import {mergeNames,aggregateIngredients,resolveName,canonicalName,migrateAdjustments,displayName,parse} from '../lib/ingredients.js';
 import {mergeQuantityNotes,classify,transfer} from '../lib/etilbudsavis.js';
 const initial=()=>({recipes:[{id:'a',lines:['200 g ris','1 alm. løg']},{id:'b',lines:['2 dl ris','2 store løg']}],selected:['a'],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}});
@@ -21,7 +21,7 @@ test('Saved custom groups work on future recipes, chain without cycles and retai
   assert.equal(aggregateIngredients(['1 stk aubergine','200 g eggplant'],{},aliases).length,2);
   const state=initial();state.nameAliases=aliases;state.recipes=[{id:'a',lines:['200 g auberginer']}];
   const item=shoppingItems(JSON.parse(JSON.stringify(state)))[0];
-  assert.equal(item.name,'Eggplant');assert.deepEqual(new Set(item.aliases),new Set(['aubergine','auberginer']));
+  assert.equal(item.name,'Eggplant');assert.deepEqual(new Set(item.aliases),new Set(['eggplant','aubergine','auberginer']));
   state.hiddenIngredients=['aubergine'];assert.deepEqual(shoppingItems(state),[]);
 });
 test('Group migration keeps pantry amounts and requires all variants to be excluded',()=>{
@@ -126,4 +126,16 @@ test('Ordinary cans, packs and bags use the counter without redundant notes on a
   for(const note of ['400 g','30 ml','2 fed','1 bundt','ca. 2 pakker','1 pakke + 200 g','1 pose + Økologisk']){
     assert.equal(classify([{name:'Testvare',note}],[])[0].nextNote,note);
   }
+});
+test('Remembered display names survive future recipes, preserve quantities and keep canonical export matching',()=>{
+  const state=initial();state.ingredientLabels=setIngredientLabel(state,'ris','Jasminris');
+  assert.equal(ingredientLabel(state,'ris'),'Jasminris');
+  assert.equal(shoppingItems(state).find(x=>x.name==='Jasminris').note,'200 g');
+  assert.ok(shoppingItems(state).find(x=>x.name==='Jasminris').aliases.includes('ris'));
+  state.recipes=[{id:'new',lines:['300 g ris']}];state.selected=['new'];
+  const reloaded=JSON.parse(JSON.stringify(state));
+  assert.equal(shoppingItems(reloaded)[0].name,'Jasminris');assert.equal(shoppingItems(reloaded)[0].note,'300 g');
+  assert.throws(()=>setIngredientLabel(state,'ris','   '));
+  assert.throws(()=>setIngredientLabel(state,'ris','x'.repeat(151)));
+  delete state.ingredientLabels.ris;assert.equal(shoppingItems(state)[0].name,'Ris');
 });

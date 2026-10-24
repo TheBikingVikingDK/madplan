@@ -4,7 +4,7 @@ import {peopleCount,recipeCount,baseServings,recipeMultiplier} from './lib/porti
 import {connectCloud} from './lib/cloud.js';
 import {sharedDocument,applySharedDocument} from './lib/shared-plan.js';
 import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
-import {selectedIngredients,shoppingItems,quantityText} from './lib/shopping.js';
+import {selectedIngredients,shoppingItems,quantityText,ingredientLabel,setIngredientLabel} from './lib/shopping.js';
 import {totalRecipeMinutes,recipeTimeLabel} from './lib/recipe-time.js';
 import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
 import {FLOW_STEPS,stepFromHash,canVisitStep,startNewPlan,initialFlowStep,migrateSharedStep} from './lib/flow.js';
@@ -15,7 +15,7 @@ let previewRequest=0;
 const incomingPlanCode=new URLSearchParams(location.hash.slice(1)).get('plan');
 let sharedController=null;
 const KEY='madplan-mvp-v1';
-const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{}};
+const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
 const save=()=>{localStorage.setItem(KEY,JSON.stringify(state));sharedController?.changed();};
@@ -30,6 +30,7 @@ function migratePreferences(){
 if(state.ingredientVersion!==3){migratePreferences();save();}
 let previewItems=[],shoppingRevision=0,transferBusy=false;
 let mergeSelection=new Set();
+let mergeMode=false;
 let wizardStep=initialFlowStep(location.hash,localStorage.getItem('madplan-step'),localStorage.getItem('madplan-flow-version')),restartSnapshot=null;
 if(!canVisitStep(wizardStep,state))wizardStep=1;
 localStorage.setItem('madplan-flow-version','5-portions');
@@ -57,13 +58,13 @@ function render(){
   const entries=aggregate().filter(p=>!state.hiddenIngredients.includes(p.name));
   if(!entries.length)list.append(el('p',count?'Alle ingredienser er skjult. De kan vises igen nederst.':'Vælg retter for at se ingredienser.','muted'));
   entries.forEach(p=>{
-    const name=displayName(p.name),wrap=el('div',undefined,'ingredient'),label=el('label');label.style.margin='0';
-    const cb=el('input');cb.type='checkbox';cb.checked=!state.excluded.includes(p.key);cb.setAttribute('aria-label','Medtag '+name);
-    cb.addEventListener('change',()=>{state.excluded=cb.checked?state.excluded.filter(k=>k!==p.key):[...state.excluded,p.key];save();invalidatePreview();render();});
+    const name=ingredientLabel(state,p.name),wrap=el('div',undefined,'ingredient'),label=el('label');label.style.margin='0';
+    const cb=el('input');cb.type='checkbox';cb.checked=mergeMode?mergeSelection.has(p.name):!state.excluded.includes(p.key);cb.setAttribute('aria-label',(mergeMode?'Sammenlæg ':'Medtag ')+name);
+    cb.addEventListener('change',()=>{if(mergeMode){if(cb.checked)mergeSelection.add(p.name);else mergeSelection.delete(p.name);render();return;}state.excluded=cb.checked?state.excluded.filter(k=>k!==p.key):[...state.excluded,p.key];save();invalidatePreview();render();});
     label.append(cb,document.createTextNode(' '+name),el('div',quantityText(p),'muted'));
-    const have=el('input');have.type='number';have.min='0';have.step='any';have.setAttribute('aria-label','Har hjemme: '+name);have.value=state.adjustments[p.key]??0;have.disabled=p.qty===null;
+    const have=el('input');have.type='number';have.min='0';have.step='any';have.setAttribute('aria-label','Har hjemme: '+name);have.value=state.adjustments[p.key]??0;have.disabled=mergeMode||p.qty===null;
     const need=el('strong');
-    const update=()=>{need.textContent=cb.checked?quantityText(p,p.qty===null?null:Math.max(0,p.qty-(Number(have.value)||0))):'Udeladt';};
+    const update=()=>{need.textContent=(mergeMode?!state.excluded.includes(p.key):cb.checked)?quantityText(p,p.qty===null?null:Math.max(0,p.qty-(Number(have.value)||0))):'Udeladt';};
     have.addEventListener('input',()=>{state.adjustments[p.key]=Math.max(0,Number(have.value)||0);save();invalidatePreview();update();});
     update();wrap.append(label,have,need);ingredientDetails(wrap,p);list.append(wrap);
   });
@@ -207,9 +208,20 @@ loadWeeks();
 
 function ingredientDetails(wrap,p){
   const actions=el('div',undefined,'actions');actions.style.gridColumn='1 / -1';
+  if(!mergeMode){
+    const edit=el('button','Ret navn','secondary');edit.type='button';edit.setAttribute('aria-label','Ret navn på '+ingredientLabel(state,p.name));
+    edit.addEventListener('click',()=>{
+      actions.replaceChildren();
+      const form=el('form',undefined,'row'),input=el('input');input.value=ingredientLabel(state,p.name);input.maxLength=150;input.required=true;input.setAttribute('aria-label','Ingrediensnavn');
+      const submit=el('button','Gem navn');submit.type='submit';const cancel=el('button','Annuller','secondary');cancel.type='button';cancel.addEventListener('click',()=>render());
+      const original=el('button','Brug oprindeligt navn','secondary');original.type='button';original.addEventListener('click',()=>{delete state.ingredientLabels[p.name];save();invalidatePreview();render();});
+      form.addEventListener('submit',event=>{event.preventDefault();try{state.ingredientLabels=setIngredientLabel(state,p.name,input.value);save();invalidatePreview();render();$('merge-message').textContent='Navnet er gemt og bruges fremover.';}catch(error){input.setCustomValidity(error.message);input.reportValidity();}});
+      input.addEventListener('input',()=>input.setCustomValidity(''));form.append(input,submit,cancel,original);actions.append(form);input.focus();input.select();
+    });actions.append(edit);
+  }
   const hide=el('button','Skjul fremover','secondary');hide.type='button';hide.setAttribute('aria-label','Skjul '+displayName(p.name)+' fremover');
   hide.addEventListener('click',()=>{state.hiddenIngredients=[...new Set([...state.hiddenIngredients,p.name])];save();invalidatePreview();render();});
-  actions.append(hide);wrap.append(actions);
+  if(!mergeMode)actions.append(hide);wrap.append(actions);
   if(p.sources.length<2&&!p.hasVolume)return;
   const details=el('details');details.style.gridColumn='1 / -1';
   details.append(el('summary',p.sources.length+' ingredienslinje'+(p.sources.length===1?'':'r')+' · se sammenlægning'+(p.hasVolume?' og omregning':'')));
@@ -239,7 +251,7 @@ function renderHiddenIngredients(){
   const root=$('hidden-ingredients');root.replaceChildren();
   if(!names.length)root.append(el('p','Brug “Skjul fremover” ved en ingrediens for at skjule den i kommende indkøbslister.','muted'));
   names.forEach(name=>{
-    const row=el('div',undefined,'recipe row');row.append(el('span',displayName(name),'grow'));
+    const row=el('div',undefined,'recipe row');row.append(el('span',ingredientLabel(state,name),'grow'));
     const button=el('button','Vis igen','secondary');button.type='button';button.setAttribute('aria-label','Vis '+displayName(name)+' igen');
     button.addEventListener('click',()=>{state.hiddenIngredients=state.hiddenIngredients.filter(x=>x!==name);save();invalidatePreview();render();});
     row.append(button);root.append(row);
@@ -248,20 +260,14 @@ function renderHiddenIngredients(){
 
 function updateMergeChoice(){
   const select=$('merge-name'),previous=select.value;select.replaceChildren();
-  for(const name of mergeSelection){const option=el('option',displayName(name));option.value=name;select.append(option);}
+  for(const name of mergeSelection){const option=el('option',ingredientLabel(state,name));option.value=name;select.append(option);}
   if(mergeSelection.has(previous))select.value=previous;
   select.disabled=mergeSelection.size<2;$('merge-button').disabled=mergeSelection.size<2;
 }
 function renderMergeIngredients(entries){
   const names=[...new Set(entries.map(p=>p.name))];
   mergeSelection=new Set([...mergeSelection].filter(x=>names.includes(x)));
-  const root=$('merge-options');root.replaceChildren();
-  if(names.length<2)root.append(el('p','Vælg retter med mindst to forskellige ingredienser for at sammenlægge dem.','muted'));
-  for(const name of names){
-    const label=el('label',undefined,'merge-option'),cb=el('input');cb.type='checkbox';cb.checked=mergeSelection.has(name);cb.setAttribute('aria-label','Sammenlæg '+displayName(name));
-    cb.addEventListener('change',()=>{if(cb.checked)mergeSelection.add(name);else mergeSelection.delete(name);updateMergeChoice();});
-    label.append(cb,document.createTextNode(' '+displayName(name)));root.append(label);
-  }
+  $('merge-panel').hidden=!mergeMode;$('merge-toggle').textContent=mergeMode?'Afslut sammenlægning':'Slå ens ingredienser sammen';$('merge-toggle').setAttribute('aria-pressed',String(mergeMode));
   updateMergeChoice();
   const groups=new Map();
   for(const name of Object.keys(state.nameAliases)){const target=resolveName(name,state.nameAliases);if(!groups.has(target))groups.set(target,[target]);groups.get(target).push(name);}
@@ -275,8 +281,9 @@ function renderMergeIngredients(entries){
     row.append(button);saved.append(row);
   }
 }
+$('merge-toggle').addEventListener('click',()=>{mergeMode=!mergeMode;mergeSelection.clear();$('merge-message').textContent='';render();});
 $('merge-button').addEventListener('click',()=>{
-  try{state.nameAliases=mergeNames(state.nameAliases,[...mergeSelection],$('merge-name').value);migratePreferences();mergeSelection.clear();save();invalidatePreview();render();$('merge-message').textContent='Ingredienserne er sammenlagt og huskes på denne enhed.';}
+  try{const target=$('merge-name').value;const remembered=[target,...mergeSelection].map(name=>state.ingredientLabels[name]).find(Boolean);state.nameAliases=mergeNames(state.nameAliases,[...mergeSelection],$('merge-name').value);if(remembered)state.ingredientLabels[target]=remembered;migratePreferences();mergeSelection.clear();mergeMode=false;save();invalidatePreview();render();$('merge-message').textContent='Ingredienserne er sammenlagt og huskes fremover.';}
   catch(error){$('merge-message').textContent=error.message;}
 });
 

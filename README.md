@@ -77,3 +77,5 @@ Deling vises som en tydelig grøn boks øverst med knapperne Gem og del / Del f�
 Delingsboksen i sidetoppen er erstattet af en 46 px ikonknap øverst til højre ved trinnavigationen. Knappen bruger et delingsikon med tilgængeligt navn og bevarer den eksisterende popup. Valgt-antal er fjernet fra toplinjen; fælles status findes i popup’en. En lille prik markerer gemt/afventende/konflikt uden at fylde på siden.
 
 Alle popup’er bruger en fælles scroll-lås: siden fastlåses før åbning, kun dialogen kan rulle, og baggrundens position samt tidligere inline-styles gendannes ved Luk/Escape. Scroll chaining fra popup’en begrænses med overscroll-behavior. Flere åbne dialoger holder låsen, indtil den sidste er lukket.
+
+Trin 3: Ret navn åbner et felt med Gem, Annuller og mulighed for oprindeligt navn. Visningsnavne gemmes separat fra ingrediensidentitet og bruges i eksport; de synkroniseres med fælles madplaner. Sammenlægning aktiveres med en tydelig knap og bruger checkbokse direkte i ingredienslisten. Gemte grupper kan ophæves nederst.
