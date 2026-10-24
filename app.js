@@ -15,7 +15,7 @@ let previewRequest=0;
 const incomingPlanCode=new URLSearchParams(location.hash.slice(1)).get('plan');
 let sharedController=null;
 const KEY='madplan-mvp-v1';
-const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{}};
+const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{},quantityOverrides:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
 const save=()=>{localStorage.setItem(KEY,JSON.stringify(state));sharedController?.changed();};
@@ -209,6 +209,20 @@ loadWeeks();
 function ingredientDetails(wrap,p){
   const actions=el('div',undefined,'actions');actions.style.gridColumn='1 / -1';
   if(!mergeMode){
+    const quantity=el('button',p.qty===null||p.unknownSources?'Angiv mængde':'Ret mængde','secondary');quantity.type='button';
+    quantity.addEventListener('click',()=>{
+      const form=el('form',undefined,'row'),amount=el('input'),unit=el('select');amount.type='number';amount.min='0.001';amount.step='any';amount.required=true;amount.placeholder='Mængde';amount.setAttribute('aria-label','Ønsket mængde');amount.style.width='110px';
+      for(const u of ['stk','pakke','dåse','pose','g','kg','ml','dl','l','spsk','tsk','fed','bundt','skive','portion']){const option=el('option',u);option.value=u;unit.append(option);}unit.setAttribute('aria-label','Mængdeenhed');unit.style.width='120px';
+      const submit=el('button','Gem mængde');submit.type='submit';const cancel=el('button','Annuller','secondary');cancel.type='button';cancel.addEventListener('click',()=>render());
+      const reset=el('button','Brug opskriftens mængde','secondary');reset.type='button';reset.addEventListener('click',()=>{delete state.quantityOverrides[p.key];save();invalidatePreview();render();});
+      const info=el('p','Samlet behov til den aktuelle madplan, før fradrag for det I har hjemme. Ret igen, hvis personer eller retter ændres.','muted');
+      form.addEventListener('submit',event=>{event.preventDefault();state.quantityOverrides={...state.quantityOverrides,[p.key]:amount.value+' '+unit.value};save();invalidatePreview();render();});
+      form.append(amount,unit,submit,cancel,reset,info);actions.replaceChildren(form);amount.focus();
+    });actions.append(quantity);
+    for(const recipe of state.recipes.filter(r=>state.selected.includes(r.id))){
+      if(!selectedIngredients({...state,recipes:[recipe],selected:[recipe.id]}).some(x=>x.name===p.name))continue;
+      const source=el('button','Se opskrift: '+recipe.title,'secondary');source.type='button';source.addEventListener('click',()=>openRecipePreview(recipe));actions.append(source);
+    }
     const edit=el('button','Ret navn','secondary');edit.type='button';edit.setAttribute('aria-label','Ret navn på '+ingredientLabel(state,p.name));
     edit.addEventListener('click',()=>{
       actions.replaceChildren();

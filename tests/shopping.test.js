@@ -139,3 +139,14 @@ test('Remembered display names survive future recipes, preserve quantities and k
   assert.throws(()=>setIngredientLabel(state,'ris','x'.repeat(151)));
   delete state.ingredientLabels.ris;assert.equal(shoppingItems(state)[0].name,'Ris');
 });
+test('Manual quantities resolve missing amounts, convert units and feed pantry/export without changing recipe data',()=>{
+  const state=initial();state.recipes=[{id:'a',lines:['bacon tern']}];
+  const key=selectedIngredients(state)[0].key;
+  state.quantityOverrides={[key]:'0.4 kg'};
+  assert.equal(shoppingItems(state)[0].note,'400 g');
+  state.adjustments[key]=100;assert.equal(shoppingItems(state)[0].note,'300 g');
+  state.adjustments={};state.quantityOverrides[key]='2 pakke';assert.equal(shoppingItems(state)[0].note,'2 pakke');
+  state.quantityOverrides[key]='2 dl';assert.equal(shoppingItems(state)[0].note,'200 ml');
+  assert.deepEqual(state.recipes[0].lines,['bacon tern']);
+  delete state.quantityOverrides[key];assert.equal(shoppingItems(state)[0].note,'Mængde: se opskrift');
+});
