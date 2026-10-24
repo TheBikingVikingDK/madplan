@@ -10,7 +10,7 @@ test('1-person recipe scales to 4 people and 2 meals with ranges and fractions b
   assert.equal(items.find(p=>p.name==='ris').qty,800);
   assert.equal(items.find(p=>p.name==='løg').qty,4);
   assert.equal(items.find(p=>p.name==='kyllingebryst').qty,3200);
-  assert.equal(items.find(p=>p.name==='salt').qty,null);
+  assert.equal(items.find(p=>p.name==='salt').qty,8);
   s.adjustments['ris|g']=100;assert.equal(shoppingItems(s).find(p=>p.name==='Ris').note,'700 g');
   s.recipeCounts.a=1;assert.equal(shoppingItems(s).find(p=>p.name==='Ris').note,'300 g');
   s.people=2;assert.equal(shoppingItems(s).find(p=>p.name==='Ris').note,'100 g');

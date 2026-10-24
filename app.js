@@ -217,11 +217,11 @@ function ingredientDetails(wrap,p){
       const reset=el('button','Brug opskriftens mængde','secondary');reset.type='button';reset.addEventListener('click',()=>{delete state.quantityOverrides[p.key];save();invalidatePreview();render();});
       const info=el('p','Samlet behov til den aktuelle madplan, før fradrag for det I har hjemme. Ret igen, hvis personer eller retter ændres.','muted');
       form.addEventListener('submit',event=>{event.preventDefault();state.quantityOverrides={...state.quantityOverrides,[p.key]:amount.value+' '+unit.value};save();invalidatePreview();render();});
-      form.append(amount,unit,submit,cancel,reset,info);actions.replaceChildren(form);amount.focus();
+      form.append(amount,unit,submit,cancel,reset,info);actions.append(form);quantity.disabled=true;amount.focus();
     });actions.append(quantity);
     for(const recipe of state.recipes.filter(r=>state.selected.includes(r.id))){
       if(!selectedIngredients({...state,recipes:[recipe],selected:[recipe.id]}).some(x=>x.name===p.name))continue;
-      const source=el('button','Se opskrift: '+recipe.title,'secondary');source.type='button';source.addEventListener('click',()=>openRecipePreview(recipe));actions.append(source);
+      const source=el('button','Se opskrift','secondary');source.type='button';source.title=recipe.title;source.addEventListener('click',()=>openRecipePreview(recipe));actions.append(source);
     }
     const edit=el('button','Ret navn','secondary');edit.type='button';edit.setAttribute('aria-label','Ret navn på '+ingredientLabel(state,p.name));
     edit.addEventListener('click',()=>{
@@ -235,7 +235,7 @@ function ingredientDetails(wrap,p){
   }
   const hide=el('button','Skjul fremover','secondary');hide.type='button';hide.setAttribute('aria-label','Skjul '+displayName(p.name)+' fremover');
   hide.addEventListener('click',()=>{state.hiddenIngredients=[...new Set([...state.hiddenIngredients,p.name])];save();invalidatePreview();render();});
-  if(!mergeMode)actions.append(hide);wrap.append(actions);
+  if(!mergeMode){actions.append(hide);const menu=el('details');menu.style.gridColumn='1 / -1';menu.append(el('summary','Ret ingrediens'),actions);wrap.append(menu);}
   if(p.sources.length<2&&!p.hasVolume)return;
   const details=el('details');details.style.gridColumn='1 / -1';
   details.append(el('summary',p.sources.length+' ingredienslinje'+(p.sources.length===1?'':'r')+' · se sammenlægning'+(p.hasVolume?' og omregning':'')));

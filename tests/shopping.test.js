@@ -33,8 +33,8 @@ test('Unknown quantities stay explicit without hiding changes to known quantitie
   const [p]=aggregateIngredients(['100 g salt','salt']);
   assert.equal(p.qty,100);assert.equal(p.unknownSources,1);
   const state=initial();state.recipes=[{id:'a',lines:['100 g salt','salt']},{id:'b',lines:['20 g salt']}];
-  assert.equal(shoppingItems(state)[0].note,'100 g + mængde: se opskrift');
-  state.selected.push('b');assert.equal(shoppingItems(state)[0].note,'120 g + mængde: se opskrift');
+  assert.equal(shoppingItems(state)[0].note,'100 g + 1 stk');
+  state.selected.push('b');assert.equal(shoppingItems(state)[0].note,'120 g + 1 stk');
 });
 test('Safe spelling and preparation variants match while varieties stay distinct',()=>{
   assert.equal(canonicalName('olie til stegning'),'olie');
@@ -148,5 +148,12 @@ test('Manual quantities resolve missing amounts, convert units and feed pantry/e
   state.adjustments={};state.quantityOverrides[key]='2 pakke';assert.equal(shoppingItems(state)[0].note,'2 pakke');
   state.quantityOverrides[key]='2 dl';assert.equal(shoppingItems(state)[0].note,'200 ml');
   assert.deepEqual(state.recipes[0].lines,['bacon tern']);
-  delete state.quantityOverrides[key];assert.equal(shoppingItems(state)[0].note,'Mængde: se opskrift');
+  delete state.quantityOverrides[key];assert.equal(shoppingItems(state)[0].note,'1 stk');
+});
+test('Alternatives each become an item with an implicit piece or inherited explicit amount',()=>{
+  const state=initial();state.recipes=[{id:'a',lines:['bacon i tern eller ristede græskarkerner']}];
+  let items=shoppingItems(state);assert.equal(items.length,2);assert.ok(items.every(x=>x.note==='1 stk'));
+  assert.ok(items.some(x=>/bacon/i.test(x.name)));assert.ok(items.some(x=>/græskarkerner/i.test(x.name)));
+  state.recipes[0].lines=['200 g bacon eller 100 g græskarkerner'];items=shoppingItems(state);
+  assert.ok(items.some(x=>x.note==='200 g'));assert.ok(items.some(x=>x.note==='100 g'));
 });
