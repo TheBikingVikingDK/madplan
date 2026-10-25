@@ -1,3 +1,4 @@
+import {favoriteKey,toggleFavorite} from './lib/favorites.js';
 let currentWeek=null,weekPage=1,weekRequest=0,importingDish=null;
 import {openDialog,closeDialog} from './lib/dialogs.js';
 import {peopleCount,recipeCount,baseServings,recipeMultiplier} from './lib/portions.js';
@@ -15,6 +16,8 @@ let previewRequest=0;
 const incomingPlanCode=new URLSearchParams(location.hash.slice(1)).get('plan');
 let sharedController=null;
 const KEY='madplan-mvp-v1';
+const FAVORITES_KEY='madplan-favorites-v1';
+let favorites;try{favorites=JSON.parse(localStorage.getItem(FAVORITES_KEY)||'[]');if(!Array.isArray(favorites))favorites=[];}catch{favorites=[];}
 const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{},quantityOverrides:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
@@ -38,6 +41,7 @@ history.replaceState(null,'','#trin-'+wizardStep);
 function aggregate(){return selectedIngredients(state)}
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function render(){
+  renderFavorites();
   $('people').value=peopleCount(state);$('people-minus').disabled=peopleCount(state)<=1;$('people-plus').disabled=peopleCount(state)>=100;
   $('portion-people').textContent='Madplanen er til '+peopleCount(state)+' personer. Ændr antal personer på trin 1.';renderPortionChoices();ensurePortionData();
   const count=state.recipes.filter(r=>state.selected.includes(r.id)).length;
@@ -410,7 +414,7 @@ function renderMealPlan(){
   recipes.forEach((recipe,index)=>{
     const card=el('li',undefined,'plan-card'),heading=el('div',undefined,'row');
     const title=el('h3',recipe.title,'grow');title.id='plan-recipe-'+recipe.id;title.tabIndex=-1;
-    heading.append(el('span',String(index+1),'plan-number'),title);card.append(heading);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
+    heading.append(el('span',String(index+1),'plan-number'),title,favoriteButton(recipe));card.append(heading);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
     const actions=el('div',undefined,'actions'),links=recipeLinks(recipe);
     links.forEach((url,i)=>{
       const link=el('a',links.length===1?'Åbn opskrift':'Åbn opskrift '+(i+1),'button-link');
@@ -447,10 +451,36 @@ function fetchRecipe(url){
   return recipeRequests.get(url);
 }
 function previewLinks(recipe){return recipeLinks(recipe);}
+function favoriteButton(recipe){
+  const button=el('button',undefined,'secondary');button.type='button';
+  const update=()=>{const active=favorites.some(r=>favoriteKey(r)===favoriteKey(recipe));button.textContent=active?'★':'☆';button.setAttribute('aria-label',(active?'Fjern favorit: ':'Gem favorit: ')+recipe.title);button.setAttribute('aria-pressed',String(active));};update();
+  button.addEventListener('click',async()=>{
+    button.disabled=true;
+    try{
+      let saved=recipe;
+      if(!favorites.some(r=>favoriteKey(r)===favoriteKey(recipe))&&!recipe.lines){
+        const parts=await Promise.all(previewLinks(recipe).map(fetchRecipe));
+        saved={...recipe,id:crypto.randomUUID(),servings:parts[0]?.servings||4,parts:parts.map(({title,url,servings,lines})=>({title,url,servings,lines})),lines:[...parts.flatMap(p=>p.lines),...(recipe.extraLines||[])],image:parts.find(p=>p.image)?.image,totalMinutes:totalRecipeMinutes(parts),portionsChecked:true};
+      }
+      favorites=toggleFavorite(favorites,saved);localStorage.setItem(FAVORITES_KEY,JSON.stringify(favorites));render();update();
+    }catch(error){button.textContent='Prøv igen';button.title=error.message;}finally{button.disabled=false;}
+  });return button;
+}
+function renderFavorites(){
+  $('favorites-summary').textContent='Favoritter ('+favorites.length+')';const root=$('favorite-recipes');root.replaceChildren();
+  if(!favorites.length)root.append(el('p','Tryk på ☆ ved en ret for at gemme den her. Favoritter huskes på denne enhed.','muted'));
+  for(const recipe of favorites){
+    const row=el('div',undefined,'recipe row'),info=el('div',undefined,'grow');info.append(recipePreviewButton(recipe));
+    const current=state.recipes.find(r=>favoriteKey(r)===favoriteKey(recipe));const selected=current&&state.selected.includes(current.id);
+    const choose=el('button',selected?'Valgt ✓':'Vælg ret',selected?'secondary':undefined);choose.type='button';choose.setAttribute('aria-label',(selected?'Fravælg ':'Vælg ')+recipe.title);
+    choose.addEventListener('click',()=>{let saved=current;if(!saved){saved={...recipe,id:crypto.randomUUID()};state.recipes.push(saved);}state.selected=selected?state.selected.filter(id=>id!==saved.id):[...state.selected,saved.id];save();invalidatePreview();render();});
+    row.append(info,choose);root.append(row);
+  }
+}
 function recipePreviewButton(recipe){
   const button=el('button',recipe.title,'recipe-title');button.type='button';
   button.setAttribute('aria-label','Se opskrift: '+recipe.title);
-  button.addEventListener('click',()=>openRecipePreview(recipe));return button;
+  button.addEventListener('click',()=>openRecipePreview(recipe));const row=el('div',undefined,'row');row.append(button,favoriteButton(recipe));return row;
 }
 function addRecipeThumbnail(root,recipe){
   const urls=previewLinks(recipe).filter(url=>new URL(url).hostname==='sundpaabudget.dk');
@@ -477,6 +507,7 @@ async function openRecipePreview(recipe){
   const request=++previewRequest,body=$('recipe-preview-body'),links=previewLinks(recipe);
   $('recipe-preview-title').textContent=recipe.title;body.replaceChildren();
   const actions=el('div',undefined,'actions');
+  actions.append(favoriteButton(recipe));
   links.forEach((url,index)=>{const link=el('a',links.length>1?'Åbn opskrift '+(index+1):'Åbn hele opskriften','button-link');link.href=url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);});
   body.append(actions);
   const content=el('div');body.append(content);
