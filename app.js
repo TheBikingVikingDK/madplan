@@ -414,7 +414,7 @@ function renderMealPlan(){
   recipes.forEach((recipe,index)=>{
     const card=el('li',undefined,'plan-card'),heading=el('div',undefined,'row');
     const title=el('h3',recipe.title,'grow');title.id='plan-recipe-'+recipe.id;title.tabIndex=-1;
-    heading.append(el('span',String(index+1),'plan-number'),title,favoriteButton(recipe));card.append(heading);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
+    heading.append(el('span',String(index+1),'plan-number'),title);card.append(heading);addRecipeThumbnail(card,recipe);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
     const actions=el('div',undefined,'actions'),links=recipeLinks(recipe);
     links.forEach((url,i)=>{
       const link=el('a',links.length===1?'Åbn opskrift':'Åbn opskrift '+(i+1),'button-link');
@@ -452,7 +452,7 @@ function fetchRecipe(url){
 }
 function previewLinks(recipe){return recipeLinks(recipe);}
 function favoriteButton(recipe){
-  const button=el('button',undefined,'secondary');button.type='button';
+  const button=el('button',undefined,'secondary favorite-toggle');button.type='button';
   const update=()=>{const active=favorites.some(r=>favoriteKey(r)===favoriteKey(recipe));button.textContent=active?'★':'☆';button.setAttribute('aria-label',(active?'Fjern favorit: ':'Gem favorit: ')+recipe.title);button.setAttribute('aria-pressed',String(active));};update();
   button.addEventListener('click',async()=>{
     button.disabled=true;
@@ -470,7 +470,7 @@ function renderFavorites(){
   $('favorites-summary').textContent='Favoritter ('+favorites.length+')';const root=$('favorite-recipes');root.replaceChildren();
   if(!favorites.length)root.append(el('p','Tryk på ☆ ved en ret for at gemme den her. Favoritter huskes på denne enhed.','muted'));
   for(const recipe of favorites){
-    const row=el('div',undefined,'recipe row'),info=el('div',undefined,'grow');info.append(recipePreviewButton(recipe));
+    const row=el('div',undefined,'recipe row'),info=el('div',undefined,'grow');info.append(recipePreviewButton(recipe));addRecipeThumbnail(info,recipe);
     const current=state.recipes.find(r=>favoriteKey(r)===favoriteKey(recipe));const selected=current&&state.selected.includes(current.id);
     const choose=el('button',selected?'Valgt ✓':'Vælg ret',selected?'secondary':undefined);choose.type='button';choose.setAttribute('aria-label',(selected?'Fravælg ':'Vælg ')+recipe.title);
     choose.addEventListener('click',()=>{let saved=current;if(!saved){saved={...recipe,id:crypto.randomUUID()};state.recipes.push(saved);}state.selected=selected?state.selected.filter(id=>id!==saved.id):[...state.selected,saved.id];save();invalidatePreview();render();});
@@ -480,17 +480,17 @@ function renderFavorites(){
 function recipePreviewButton(recipe){
   const button=el('button',recipe.title,'recipe-title');button.type='button';
   button.setAttribute('aria-label','Se opskrift: '+recipe.title);
-  button.addEventListener('click',()=>openRecipePreview(recipe));const row=el('div',undefined,'row');row.append(button,favoriteButton(recipe));return row;
+  button.addEventListener('click',()=>openRecipePreview(recipe));return button;
 }
 function addRecipeThumbnail(root,recipe){
   const urls=previewLinks(recipe).filter(url=>new URL(url).hostname==='sundpaabudget.dk');
   const time=el('div',recipe.totalMinutes?recipeTimeLabel(recipe.totalMinutes):urls.length?'Henter tid…':'Tid ikke oplyst','muted recipe-time');root.append(time);
-  const button=el('button',undefined,'recipe-thumbnail');button.type='button';button.hidden=true;
+  const media=el('div',undefined,'recipe-media');const button=el('button',undefined,'recipe-thumbnail');button.type='button';
   button.setAttribute('aria-label','Se billede og opskrift: '+recipe.title);
   const image=el('img');image.alt='';image.width=88;image.height=70;
   image.addEventListener('error',()=>button.hidden=true);
   image.addEventListener('load',()=>button.hidden=false);
-  button.append(image);button.addEventListener('click',()=>openRecipePreview(recipe));root.prepend(button);
+  button.append(image);button.addEventListener('click',()=>openRecipePreview(recipe));media.append(button,favoriteButton(recipe));root.prepend(media);
   if(recipe.image)image.src=recipe.image;
   if(!urls.length)return;
   const observer=new IntersectionObserver(entries=>{
@@ -507,7 +507,7 @@ async function openRecipePreview(recipe){
   const request=++previewRequest,body=$('recipe-preview-body'),links=previewLinks(recipe);
   $('recipe-preview-title').textContent=recipe.title;body.replaceChildren();
   const actions=el('div',undefined,'actions');
-  actions.append(favoriteButton(recipe));
+
   links.forEach((url,index)=>{const link=el('a',links.length>1?'Åbn opskrift '+(index+1):'Åbn hele opskriften','button-link');link.href=url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);});
   body.append(actions);
   const content=el('div');body.append(content);
@@ -516,11 +516,13 @@ async function openRecipePreview(recipe){
     content.replaceChildren();
     content.append(el('p',recipeTimeLabel(totalRecipeMinutes(parts)),'notice recipe-time'));
     if(parts.length>1)content.append(el('p','Tiden er summen af opskrifternes tider. Nogle dele kan muligvis laves samtidig.','muted'));
+    let favoriteShown=false;
     for(const part of parts){
-      if(part.image){const image=el('img',undefined,'recipe-preview-image');image.src=part.image;image.alt=part.title||recipe.title;image.addEventListener('error',()=>image.remove());content.append(image);}
+      if(part.image){const image=el('img',undefined,'recipe-preview-image');image.src=part.image;image.alt=part.title||recipe.title;image.addEventListener('error',()=>image.remove());const media=el('div',undefined,'preview-media');media.append(image);if(!favoriteShown){media.append(favoriteButton(recipe));favoriteShown=true;}content.append(media);}
       if(parts.length>1){content.append(el('h3',part.title),el('p',recipeTimeLabel(part.totalMinutes),'muted'));}
       if(part.lines?.length){content.append(el('p',part.servings?'Original opskrift: '+part.servings+' personer':'Antal personer er ikke oplyst i kilden.','muted'),el('h3','Ingredienser i original opskrift'));const list=el('ul');part.lines.forEach(line=>list.append(el('li',line)));content.append(list);}
     }
+    if(!favoriteShown)content.prepend(favoriteButton(recipe));
     if(recipe.extraLines?.length){content.append(el('h3','Tilbehør / ekstra'));const list=el('ul');recipe.extraLines.forEach(line=>list.append(el('li',line)));content.append(list);}
   };
   if(recipe.lines)show([recipe]);else content.append(el('p','Henter billede og ingredienser…','muted'));
@@ -580,7 +582,7 @@ function renderPortionChoices(){
   $('portion-panel').hidden=!recipes.length;
   recipes.forEach(recipe=>{
     const row=el('div',undefined,'portion-card'),heading=el('div',undefined,'row'),info=el('div',undefined,'grow');
-    info.append(recipePreviewButton(recipe));
+    info.append(recipePreviewButton(recipe));addRecipeThumbnail(info,recipe);
     const count=recipeCount(state,recipe.id),people=peopleCount(state);
     info.append(el('div',people+' personer × '+count+' '+(count===1?'gang':'gange')+' = '+people*count+' portioner i alt','muted'));
     const controls=el('div',undefined,'portion-controls');controls.setAttribute('aria-label','Antal gange: '+recipe.title);
