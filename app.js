@@ -142,7 +142,7 @@ api('status').then(async data=>{showConnected(data.connected);if(!data.configure
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 function dishKey(dish){return JSON.stringify([dish.urls,dish.extraLines]);}
-function savedDish(dish){return state.recipes.find(r=>r.sourceKey===dishKey(dish)||(!dish.extraLines.length&&dish.urls.length===1&&r.url===dish.urls[0]));}
+function savedDish(dish){return state.recipes.find(r=>favoriteKey(r)===favoriteKey(dish)||r.sourceKey===dishKey(dish)||(!dish.extraLines.length&&dish.urls.length===1&&r.url===dish.urls[0]));}
 function renderWeekDishes(){
   if(!currentWeek)return;
   const root=$('week-dishes');root.replaceChildren();
