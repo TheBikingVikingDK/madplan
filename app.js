@@ -149,13 +149,13 @@ function renderWeekDishes(){
   currentWeek.dishes.forEach(dish=>{
     const saved=savedDish(dish),selected=saved&&state.selected.includes(saved.id);
     const row=el('div',undefined,'recipe row'),info=el('div',undefined,'grow');
-    info.append(el('div',dish.day,'muted'),recipePreviewButton(dish));
+    info.append(recipePreviewButton(dish));
     addRecipeThumbnail(info,dish);
     if(dish.notes)info.append(el('p',dish.notes,'muted'));
     const button=el('button',importingDish===dishKey(dish)?'Henter…':selected?'Valgt ✓':'Vælg ret',selected?'secondary':undefined);
     button.disabled=Boolean(importingDish)||!dish.urls.length;
     button.setAttribute('aria-label',(selected?'Fravælg ':'Vælg ')+dish.title);
-    button.addEventListener('click',()=>chooseDish(dish));row.append(info,button);root.append(row);
+    row.classList.add('week-recipe');button.classList.add('choose-recipe');button.addEventListener('click',()=>chooseDish(dish));row.append(info,button);root.append(row);
   });
 }
 async function chooseDish(dish){
