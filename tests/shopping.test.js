@@ -150,10 +150,9 @@ test('Manual quantities resolve missing amounts, convert units and feed pantry/e
   assert.deepEqual(state.recipes[0].lines,['bacon tern']);
   delete state.quantityOverrides[key];assert.equal(shoppingItems(state)[0].note,'1 stk');
 });
-test('Alternatives each become an item with an implicit piece or inherited explicit amount',()=>{
-  const state=initial();state.recipes=[{id:'a',lines:['bacon i tern eller ristede græskarkerner']}];
-  let items=shoppingItems(state);assert.equal(items.length,2);assert.ok(items.every(x=>x.note==='1 stk'));
-  assert.ok(items.some(x=>/bacon/i.test(x.name)));assert.ok(items.some(x=>/græskarkerner/i.test(x.name)));
-  state.recipes[0].lines=['200 g bacon eller 100 g græskarkerner'];items=shoppingItems(state);
-  assert.ok(items.some(x=>x.note==='200 g'));assert.ok(items.some(x=>x.note==='100 g'));
+test('Alternatives remain one ingredient line rather than separate purchases',()=>{
+ const state=initial();state.recipes=[{id:'a',lines:['bacon i tern eller ristede græskarkerner']}];
+ let items=shoppingItems(state);assert.equal(items.length,1);assert.equal(items[0].note,'1 stk');
+ state.recipes[0].lines=['200 g bacon, skinke eller græskarkerner'];items=shoppingItems(state);
+ assert.equal(items.length,1);assert.equal(items[0].note,'200 g');
 });
