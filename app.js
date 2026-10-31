@@ -4,7 +4,7 @@ import {openDialog,closeDialog} from './lib/dialogs.js';
 import {peopleCount,recipeCount,baseServings,recipeMultiplier} from './lib/portions.js';
 import {connectCloud} from './lib/cloud.js';
 import {sharedDocument,applySharedDocument} from './lib/shared-plan.js';
-import {format,migrateAdjustments,displayName,resolveName,mergeNames} from './lib/ingredients.js';
+import {format,migrateAdjustments,displayName,resolveName,mergeNames,unitLabel} from './lib/ingredients.js';
 import {selectedIngredients,shoppingItems,quantityText,ingredientLabel,setIngredientLabel} from './lib/shopping.js';
 import {totalRecipeMinutes,recipeTimeLabel} from './lib/recipe-time.js';
 import {planRecipes,movePlanRecipe,recipeLinks} from './lib/plan.js';
@@ -216,7 +216,7 @@ function ingredientDetails(wrap,p){
     const quantity=el('button',p.qty===null||p.unknownSources?'Angiv mængde':'Ret mængde','secondary');quantity.type='button';
     quantity.addEventListener('click',()=>{
       const form=el('form',undefined,'row'),amount=el('input'),unit=el('select');amount.type='number';amount.min='0.001';amount.step='any';amount.required=true;amount.placeholder='Mængde';amount.setAttribute('aria-label','Ønsket mængde');amount.style.width='110px';
-      for(const u of ['stk','pakke','dåse','pose','g','kg','ml','dl','l','spsk','tsk','fed','bundt','skive','portion']){const option=el('option',u);option.value=u;unit.append(option);}unit.setAttribute('aria-label','Mængdeenhed');unit.style.width='120px';
+      for(const u of ['stk','pakke','dåse','pose','g','kg','ml','dl','l','spsk','tsk','fed','bundt','skive','portion']){const plural=unitLabel(u,2);const option=el('option',u+(plural!==u?' / '+plural:''));option.value=u;unit.append(option);}unit.setAttribute('aria-label','Mængdeenhed');unit.style.width='120px';
       const submit=el('button','Gem mængde');submit.type='submit';const cancel=el('button','Annuller','secondary');cancel.type='button';cancel.addEventListener('click',()=>render());
       const reset=el('button','Brug opskriftens mængde','secondary');reset.type='button';reset.addEventListener('click',()=>{delete state.quantityOverrides[p.key];save();invalidatePreview();render();});
       const info=el('p','Samlet behov til den aktuelle madplan, før fradrag for det I har hjemme. Ret igen, hvis personer eller retter ændres.','muted');

@@ -50,3 +50,11 @@ test('Quantity ranges use the maximum including embedded recipe-name quantities'
   assert.equal(aggregateIngredients(['350-400 g kylling','200 g kylling'])[0].qty,600);
   assert.equal(parse('1-2 løg').qty,2);
 });
+test('Count units accept singular and plural while keeping one canonical unit',async()=>{
+ const {parse,unitLabel}=await import('../lib/ingredients.js');
+ for(const [singular,plural] of [['skive','skiver'],['pakke','pakker'],['pose','poser'],['dåse','dåser'],['bundt','bundter'],['portion','portioner'],['håndfuld','håndfulde'],['fed','fed'],['skvæt','skvæt']]){
+  assert.equal(parse('1 '+singular+' test').unit,singular);
+  assert.equal(parse('2 '+plural+' test').unit,singular);
+  assert.equal(unitLabel(singular,1),singular);assert.equal(unitLabel(singular,2),plural);
+ }
+});

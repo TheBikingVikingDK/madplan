@@ -145,7 +145,7 @@ test('Manual quantities resolve missing amounts, convert units and feed pantry/e
   state.quantityOverrides={[key]:'0.4 kg'};
   assert.equal(shoppingItems(state)[0].note,'400 g');
   state.adjustments[key]=100;assert.equal(shoppingItems(state)[0].note,'300 g');
-  state.adjustments={};state.quantityOverrides[key]='2 pakke';assert.equal(shoppingItems(state)[0].note,'2 pakke');
+  state.adjustments={};state.quantityOverrides[key]='2 pakke';assert.equal(shoppingItems(state)[0].note,'2 pakker');
   state.quantityOverrides[key]='2 dl';assert.equal(shoppingItems(state)[0].note,'200 ml');
   assert.deepEqual(state.recipes[0].lines,['bacon tern']);
   delete state.quantityOverrides[key];assert.equal(shoppingItems(state)[0].note,'1 stk');
