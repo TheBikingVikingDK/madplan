@@ -596,7 +596,7 @@ function renderPortionChoices(){
       if(direction===1){const value=el('span',count+'×');value.setAttribute('aria-label',count+' gange');controls.append(value);}
       controls.append(button);
     }
-    heading.append(info,controls);row.append(heading);
+    heading.append(info);row.append(heading);
     const parts=recipe.parts?.length?recipe.parts:[recipe];
     row.append(el('div',parts.length===1?'Original: '+baseServings(parts[0])+' personer · ingredienser × '+format(recipeMultiplier(state,recipe,parts[0])):'Tilbehør og hovedret omregnes hver for sig efter deres portionsantal.','muted'));
     if(parts.some(part=>!part.servings))row.append(el('p','Portionsantal mangler'+(portionRequests.has(recipe.id)?' eller hentes':'')+'. Der regnes foreløbigt med 4 personer pr. opskrift; ret det nedenfor, hvis det ikke passer.','muted'));
@@ -608,7 +608,7 @@ function renderPortionChoices(){
         if(!input.checkValidity()){input.reportValidity();return;}
         part.servings=Number(input.value);recipe.portionsChecked=true;if(index===0)recipe.servings=part.servings;save();invalidatePreview();render();
       });label.append(input,document.createTextNode(' personer'));details.append(label);
-    });row.append(details);root.append(row);
+    });row.append(details,controls);root.append(row);
   });
 }
 function ensurePortionData(){
