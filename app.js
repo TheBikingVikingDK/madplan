@@ -414,7 +414,7 @@ function renderMealPlan(){
   recipes.forEach((recipe,index)=>{
     const card=el('li',undefined,'plan-card'),heading=el('div',undefined,'row');
     const title=el('h3',recipe.title,'grow');title.id='plan-recipe-'+recipe.id;title.tabIndex=-1;
-    heading.append(el('span',String(index+1),'plan-number'),title);card.append(heading);addRecipeThumbnail(card,recipe);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
+    heading.append(title);card.append(heading);addRecipeThumbnail(card,recipe);const divider=el('div',undefined,'plan-divider');divider.append(el('span',String(index+1),'plan-number'));card.prepend(divider);card.append(el('p',peopleCount(state)+' personer · '+recipeCount(state,recipe.id)+' '+(recipeCount(state,recipe.id)===1?'gang':'gange')+' · '+peopleCount(state)*recipeCount(state,recipe.id)+' portioner','muted'));
     const actions=el('div',undefined,'actions'),links=recipeLinks(recipe);
     links.forEach((url,i)=>{
       const link=el('a',links.length===1?'Åbn opskrift':'Åbn opskrift '+(i+1),'button-link');
