@@ -77,3 +77,11 @@ test('Ingredient display names and learned merges are shared and validated, with
   document.state.ingredientLabels={ris:'x'.repeat(151)};assert.throws(()=>validateSharedDocument(document));
   document.state.ingredientLabels=JSON.parse('{"__proto__":"bad"}');assert.throws(()=>validateSharedDocument(document));
 });
+test('Cooked meals survive shared plan validation and reopen; unchecking is retained',()=>{
+ const s=state();s.cookedRecipes={a:true};
+ let doc=validateSharedDocument(sharedDocument(s,5));
+ assert.equal(applySharedDocument(state(),doc).cookedRecipes.a,true);
+ s.cookedRecipes.a=false;doc=validateSharedDocument(sharedDocument(s,5));assert.equal(doc.state.cookedRecipes.a,false);
+ delete doc.state.cookedRecipes;assert.deepEqual(validateSharedDocument(doc).state.cookedRecipes,{});
+ doc.state.cookedRecipes={a:'true'};assert.throws(()=>validateSharedDocument(doc));
+});

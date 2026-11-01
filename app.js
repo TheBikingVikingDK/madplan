@@ -18,7 +18,7 @@ let sharedController=null;
 const KEY='madplan-mvp-v1';
 const FAVORITES_KEY='madplan-favorites-v1';
 let favorites;try{favorites=JSON.parse(localStorage.getItem(FAVORITES_KEY)||'[]');if(!Array.isArray(favorites))favorites=[];}catch{favorites=[];}
-const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{},quantityOverrides:{}};
+const defaults={people:4,recipeCounts:{},recipes:[],selected:[],adjustments:{},excluded:[],densities:{},hiddenIngredients:[],nameAliases:{},ingredientLabels:{},quantityOverrides:{},cookedRecipes:{}};
 let state;try{state={...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state={...defaults}};
 const $=id=>document.getElementById(id);
 const save=()=>{localStorage.setItem(KEY,JSON.stringify(state));sharedController?.changed();};
@@ -388,7 +388,7 @@ $('restart-plan').addEventListener('click',()=>{if(!wizardBusy())openDialog($('r
 $('cancel-restart').addEventListener('click',()=>closeDialog($('restart-dialog')));
 $('confirm-restart').addEventListener('click',()=>{
   if(wizardBusy())return;
-  restartSnapshot={selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,recipeCounts:{...state.recipeCounts},step:wizardStep,
+  restartSnapshot={cookedRecipes:{...state.cookedRecipes},selected:[...state.selected],adjustments:{...state.adjustments},excluded:[...state.excluded],planProgress:state.planProgress,recipeCounts:{...state.recipeCounts},step:wizardStep,
     draft:{title:$('title').value,url:$('url').value,lines:$('lines').value}};
   state=startNewPlan(state);state.planProgress={stage:'planning',sentAt:null,fingerprint:null};mergeSelection.clear();save();invalidatePreview();
   $('title').value=$('url').value=$('lines').value='';$('message').textContent='';$('merge-message').textContent='';
@@ -432,7 +432,11 @@ function renderMealPlan(){
       });
       actions.append(button);
     }
-    card.append(actions);
+    const cookedLabel=el('label',undefined,'cooked-toggle'),cooked=el('input');cooked.type='checkbox';cooked.checked=Boolean(state.cookedRecipes?.[recipe.id]);cooked.setAttribute('aria-label','Lavet: '+recipe.title);
+    const cookedText=el('span',cooked.checked?'Lavet ✓':'Markér som lavet');
+    const showCooked=()=>{card.classList.toggle('is-cooked',cooked.checked);cookedText.textContent=cooked.checked?'Lavet ✓':'Markér som lavet';};showCooked();
+    cooked.addEventListener('change',()=>{state.cookedRecipes={...state.cookedRecipes,[recipe.id]:cooked.checked};save();showCooked();$('plan-message').textContent=recipe.title+(cooked.checked?' er markeret som lavet.':' er ikke længere markeret som lavet.');});
+    cookedLabel.append(cooked,cookedText);card.append(cookedLabel,actions);
     if(!links.length)card.append(el('p','Der er ikke gemt et link til denne opskrift. Se ingredienserne nedenfor.','muted'));
     const details=el('details'),summary=el('summary','Se ingredienser');details.append(summary);
     const ingredients=el('ul');recipe.lines.forEach(line=>ingredients.append(el('li',line)));details.append(ingredients);card.append(details);
