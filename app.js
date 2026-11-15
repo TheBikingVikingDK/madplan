@@ -133,7 +133,7 @@ $('transfer-button').addEventListener('click',()=>busy($('transfer-button'),asyn
     const result=await api('transfer',{listId:$('shopping-list').value,items});
     invalidatePreview();
     state.planProgress={stage:result.uncertain?'partial':'sent',sentAt:new Date().toISOString(),fingerprint:shoppingFingerprint()};save();
-    $('connection-message').textContent=result.added.length+' varer tilføjet. '+result.updated.length+' eksisterende varer opdateret.'+(result.uncertain?' Overførslen stoppede ved '+result.uncertain+'. '+result.error+' Gennemgå varerne igen før næste forsøg.':' Se varerne i eTilbudsavis.');
+    $('connection-message').textContent=result.added.length+' varer tilføjet. '+result.updated.length+' eksisterende varer opdateret.'+(result.failed?.length?' '+result.failed.length+' varer kunne ikke bekræftes: '+result.failed.map(x=>x.name).join(', ')+'. Kontrollér dem i eTilbudsavis før du prøver igen.':' Se varerne i eTilbudsavis.');
   }catch(error){invalidatePreview();throw Error(error.message+' Kontrollér listen i eTilbudsavis og gennemgå varerne igen før næste forsøg.');}
   finally{transferBusy=false;renderWizard();$('shopping-list').disabled=false;$('preview-button').disabled=false;$('refresh-lists').disabled=false;}
 }));
