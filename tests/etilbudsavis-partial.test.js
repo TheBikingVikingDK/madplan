@@ -28,3 +28,20 @@ test('stops after rate limiting to avoid further rejected writes',async()=>{
   assert.deepEqual(sent,['Iceberg','Kartofler']);
   assert.deepEqual(result.failed.map(x=>x.name),['Kartofler']);
 });
+
+test('rounds fractional piece counts up when creating items',async()=>{
+  const counts=[];
+  const fetcher=async(url,options)=>{
+    const body=JSON.parse(options.body);
+    if(body.data)return {ok:true,status:200,json:async()=>[{value:[]}]};
+    counts.push(body.item.count);
+    return {ok:true,status:200,json:async()=>({})};
+  };
+  await transfer('list',[
+    {name:'Iceberg',note:'0,5 stk'},
+    {name:'Æg',note:'1,5 stk'},
+    {name:'Mælk',note:'1,5 liter'},
+    {name:'Tomater',note:'2 stk'}
+  ],'token',fetcher);
+  assert.deepEqual(counts,[1,2,1,2]);
+});
